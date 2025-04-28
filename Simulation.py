@@ -1,10 +1,11 @@
 import numpy as np
 from Drone import QuadcopterModel
+from World import World
 
 # --- Main: Simulation and Plotting ---
 
 class Simulation:
-    def __init__(self, drone: QuadcopterModel, waypoints: list, dt=0.007, max_simulation_time=200.0, frame_skip=8, target_reached_threshold=2.0, dynamic_target_shift_threshold_prc=0.7):
+    def __init__(self, drone: QuadcopterModel, world:World, waypoints: list, dt=0.007, max_simulation_time=200.0, frame_skip=8, target_reached_threshold=2.0, dynamic_target_shift_threshold_prc=0.7):
         self.dt = dt
         self.max_simulation_time = max_simulation_time
         self.num_steps = int(max_simulation_time / dt)
@@ -13,6 +14,7 @@ class Simulation:
         self.dynamic_target_shift_threshold_prc = dynamic_target_shift_threshold_prc
         self.waypoints = waypoints
         self.drone = drone
+        self.world = world
 
     def _compute_moving_target(self, drone_pos, seg_start, seg_end, v_des, k=1.0):
         """

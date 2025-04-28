@@ -4,6 +4,7 @@ from Drone import QuadcopterModel
 from Controller import QuadCopterController
 from Simulation import Simulation
 from plotting_functions import plot3DAnimation, plotLogData
+from World import World
 
 def main():
     """
@@ -84,8 +85,12 @@ def main():
         max_rpm=10000.0
     )
 
+    # Initialize the world
+    world = World.load_world("Worlds/world_winterthur.pkl")
+
     # Initialize the simulation
-    sim = Simulation(drone, 
+    sim = Simulation(drone,
+                    world,
                     waypoints, 
                     dt=dt,
                     max_simulation_time=simulation_time,
