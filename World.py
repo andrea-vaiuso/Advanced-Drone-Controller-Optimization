@@ -41,11 +41,10 @@ class World:
             "max_altitude": 0, 
             "noise_penalty": 10,
             "color": "red",
-            "alpha": 0.1
+            "alpha": 0.2
         }
     }
     
-    # Imposta l'ID di default (ad esempio, Open Field)
     DEFAULT_AREA_ID = 3
 
     def __init__(self, grid_size, max_world_size, world_name="World", background_image_path=None):

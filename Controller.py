@@ -113,7 +113,7 @@ class QuadCopterController:
         # Inner loop: attitude control
         roll_command = self.pid_roll.update(roll, roll_des, dt)
         pitch_command = self.pid_pitch.update(pitch, pitch_des, dt)
-        yaw_command = self.pid_yaw.update(yaw, 0, dt)  # alternatively, use yaw_des
+        yaw_command = self.pid_yaw.update(yaw, 0, dt)  # alternatively, use yaw_des to rotate towards the target
 
         # Saturate the commands
         thrust_command = np.clip(thrust_command, 0, self.u1_limit)

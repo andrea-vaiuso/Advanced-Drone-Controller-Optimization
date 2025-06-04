@@ -18,17 +18,30 @@ def main():
     threshold = 2.0  # Stop simulation if within 2 meters of final target
     dynamic_target_shift_threshold_prc = 0.7 # Shift to next segment if a certain percentage of current segment is covered
 
-    # --- Define Waypoints (with desired speed) ---
+    # # --- Define Waypoints (with desired speed) ---
+    # waypoints = [
+    #     {'x': 10.0, 'y': 10.0, 'z': 70.0, 'v': 10},  # Start near origin at high altitude
+    #     {'x': 90.0, 'y': 10.0, 'z': 70.0, 'v': 10},  # Far in x, near y, maintaining high altitude
+    #     {'x': 90.0, 'y': 90.0, 'z': 90.0, 'v': 0.5},   # Far in both x and y with even higher altitude
+    #     {'x': 10.0, 'y': 90.0, 'z': 20.0, 'v': 10},   # Sharp maneuver: near x, far y with dramatic altitude drop
+    #     {'x': 50.0, 'y': 50.0, 'z': 40.0, 'v': 10},   # Central target with intermediate altitude
+    #     {'x': 60.0, 'y': 60.0, 'z': 40.0, 'v': 10},   # Hovering target 1
+    #     {'x': 70.0, 'y': 70.0, 'z': 40.0, 'v': 10},   # Hovering target 2
+    #     {'x': 80.0, 'y': 80.0, 'z': 40.0, 'v': 10},   # Hovering target 3
+    #     {'x': 10.0, 'y': 10.0, 'z': 10.0, 'v': 10}    # Final target: near origin at low altitude
+    # ]
+
     waypoints = [
-        {'x': 10.0, 'y': 10.0, 'z': 70.0, 'v': 10},  # Start near origin at high altitude
-        {'x': 90.0, 'y': 10.0, 'z': 70.0, 'v': 10},  # Far in x, near y, maintaining high altitude
-        {'x': 90.0, 'y': 90.0, 'z': 90.0, 'v': 0.5},   # Far in both x and y with even higher altitude
-        {'x': 10.0, 'y': 90.0, 'z': 20.0, 'v': 10},   # Sharp maneuver: near x, far y with dramatic altitude drop
-        {'x': 50.0, 'y': 50.0, 'z': 40.0, 'v': 10},   # Central target with intermediate altitude
-        {'x': 60.0, 'y': 60.0, 'z': 40.0, 'v': 10},   # Hovering target 1
-        {'x': 70.0, 'y': 70.0, 'z': 40.0, 'v': 10},   # Hovering target 2
-        {'x': 80.0, 'y': 80.0, 'z': 40.0, 'v': 10},   # Hovering target 3
-        {'x': 10.0, 'y': 10.0, 'z': 10.0, 'v': 10}    # Final target: near origin at low altitude
+        {'x': 0.0, 'y': 0.0, 'z': 10.0, 'v': 2},
+        {'x': 10.0, 'y': 10.0, 'z': 10.0, 'v': 5},
+        {'x': 20.0, 'y': 20.0, 'z': 10.0, 'v': 2},
+        {'x': 30.0, 'y': 30.0, 'z': 10.0, 'v': 5},
+        {'x': 40.0, 'y': 40.0, 'z': 10.0, 'v': 2},
+        {'x': 50.0, 'y': 50.0, 'z': 10.0, 'v': 5},
+        {'x': 60.0, 'y': 60.0, 'z': 10.0, 'v': 2},
+        {'x': 70.0, 'y': 70.0, 'z': 10.0, 'v': 5},
+        {'x': 80.0, 'y': 80.0, 'z': 10.0, 'v': 2},
+        {'x': 90.0, 'y': 90.0, 'z': 10.0, 'v': 5}
     ]
 
     # Initial drone state
@@ -82,7 +95,7 @@ def main():
         Jr=params['Jr'],
         init_state=state,
         controller=quad_controller,
-        max_rpm=10000.0
+        max_rpm=10000.0,
     )
 
     # Initialize the world
@@ -96,14 +109,14 @@ def main():
                     max_simulation_time=simulation_time,
                     frame_skip=frame_skip, 
                     target_reached_threshold=threshold, 
-                    dynamic_target_shift_threshold_prc=dynamic_target_shift_threshold_prc)
+                    dynamic_target_shift_threshold_prc=dynamic_target_shift_threshold_prc,
+                    simulate_wind=True,max_gust=20)
     
     positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, targets = sim.startSimulation()
 
     # Plot 3D animation of the drone's trajectory and attitude
     plot3DAnimation(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, targets, waypoints, start_position, dt, frame_skip)
     plotLogData(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, waypoints)
-
    
 if __name__ == "__main__":
     main()

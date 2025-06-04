@@ -40,6 +40,8 @@ class QuadcopterModel:
         
         self.max_rpm_sq = (self.max_rpm * 2 * np.pi / 60)**2
         self._compute_hover_rpm()
+        self.wind_velocity = np.zeros(3)  # Wind velocity vector [vx, vy, vz]
+        self.simulate_wind = False  # Flag to simulate wind gusts
 
     def _compute_hover_rpm(self) -> None:
         """
@@ -48,6 +50,7 @@ class QuadcopterModel:
         T_hover = self.m * self.g
         w_hover = np.sqrt(T_hover / (4 * self.b))
         rpm_hover = w_hover * 60.0 / (2.0 * np.pi)
+        return rpm_hover
         # Uncomment the following line for debug information:
         # print(f"[INFO] Hover thrust needed = {T_hover:.2f} N, hover rpm per motor ~ {rpm_hover:.1f} rpm")
 
@@ -57,43 +60,59 @@ class QuadcopterModel:
         """
         return f"Quadcopter Model: state = {self.state}"
 
-    def _translational_dynamics(self, state: dict) -> np.ndarray:
+    def _translational_dynamics(self,
+                            state: dict,
+                            rho = 1.225, A = 0.1, C_d = 0.47) -> np.ndarray:
         """
-        Compute the translational accelerations.
+        Compute the translational accelerations, optionally including wind.
 
         Parameters:
-            state (dict): Current state.
+            state (dict): Current state with keys 'vel' and 'rpm'.
+            rho (float): Air density (default is 1.225 kg/m^3).
+            A (float): Reference area (default is 0.1 m^2).
+            C_d (float): Drag coefficient (default is 0.47).
 
         Returns:
-            np.ndarray: Acceleration vector [x_ddot, y_ddot, z_ddot].
+            np.ndarray: Translational acceleration vector [x_ddot, y_ddot, z_ddot].
         """
-        omega = self._rpm_to_omega(state['rpm'])
-        x_dot, y_dot, z_dot = state['vel']
-        roll, pitch, yaw = state['angles']
-        thrust = self.b * np.sum(np.square(omega))
-        
-        v = np.linalg.norm(state['vel'])
-        rho = 1.225  # Air density in kg/m³
-        A = 0.1      # Reference area in m²
-        C_d = 0.47   # Drag coefficient
+        # parametri aerodinamici
+             # coefficiente di drag
 
-        if v > 0:
-            drag_magnitude = 0.5 * rho * A * C_d * v**2
-            drag_vector = drag_magnitude * (state['vel'] / v)
+        # 1) scegli se includere la raffica o no
+        if self.simulate_wind:
+            wind = getattr(self, 'wind_velocity', np.zeros(3))
         else:
-            drag_vector = np.array([0.0, 0.0, 0.0])
+            wind = np.zeros(3)
 
-        x_ddot = (thrust / self.m *
-                  (np.cos(yaw) * np.sin(pitch) * np.cos(roll) + np.sin(yaw) * np.sin(roll))
-                  - drag_vector[0] / self.m)
-        y_ddot = (thrust / self.m *
-                  (np.sin(yaw) * np.sin(pitch) * np.cos(roll) - np.cos(yaw) * np.sin(roll))
-                  - drag_vector[1] / self.m)
-        z_ddot = (thrust / self.m *
-                  (np.cos(pitch) * np.cos(roll))
-                  - drag_vector[2] / self.m - self.g)
+        # 2) velocità relativa
+        v_rel = state['vel'] - wind
+        speed = np.linalg.norm(v_rel)
+
+        # 3) calcolo drag su v_rel
+        if speed > 0:
+            drag_mag = 0.5 * rho * A * C_d * speed**2
+            drag_vec = drag_mag * (v_rel / speed)
+        else:
+            drag_vec = np.zeros(3)
+
+        # 4) spinta motori (come prima)
+        omega = self._rpm_to_omega(state['rpm'])
+        thrust = self.b * np.sum(omega**2)
+
+        # 5) decomposizione thrust in direzione corpo→mondo
+        roll, pitch, yaw = state['angles']
+        # (riporta qui la tua esatta proiezione, ad es:)
+        ux =  np.cos(yaw) * np.sin(pitch) * np.cos(roll) + np.sin(yaw) * np.sin(roll)
+        uy =  np.sin(yaw) * np.sin(pitch) * np.cos(roll) - np.cos(yaw) * np.sin(roll)
+        uz =  np.cos(pitch) * np.cos(roll)
+
+        # 6) accelerazioni finali
+        x_ddot = thrust/self.m * ux - drag_vec[0]/self.m
+        y_ddot = thrust/self.m * uy - drag_vec[1]/self.m
+        z_ddot = thrust/self.m * uz - drag_vec[2]/self.m - self.g
 
         return np.array([x_ddot, y_ddot, z_ddot])
+
 
     def _rotational_dynamics(self, state: dict) -> np.ndarray:
         """
