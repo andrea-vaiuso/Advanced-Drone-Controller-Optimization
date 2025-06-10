@@ -32,15 +32,15 @@ def main():
     # ]
 
     waypoints = [
-        {'x': 0.0, 'y': 0.0, 'z': 10.0, 'v': 2},
+        {'x': 0.0, 'y': 0.0, 'z': 10.0, 'v': 5},
         {'x': 10.0, 'y': 10.0, 'z': 10.0, 'v': 5},
-        {'x': 20.0, 'y': 20.0, 'z': 10.0, 'v': 2},
+        {'x': 20.0, 'y': 20.0, 'z': 10.0, 'v': 5},
         {'x': 30.0, 'y': 30.0, 'z': 10.0, 'v': 5},
-        {'x': 40.0, 'y': 40.0, 'z': 10.0, 'v': 2},
+        {'x': 40.0, 'y': 40.0, 'z': 10.0, 'v': 5},
         {'x': 50.0, 'y': 50.0, 'z': 10.0, 'v': 5},
-        {'x': 60.0, 'y': 60.0, 'z': 10.0, 'v': 2},
+        {'x': 60.0, 'y': 60.0, 'z': 10.0, 'v': 5},
         {'x': 70.0, 'y': 70.0, 'z': 10.0, 'v': 5},
-        {'x': 80.0, 'y': 80.0, 'z': 10.0, 'v': 2},
+        {'x': 80.0, 'y': 80.0, 'z': 10.0, 'v': 5},
         {'x': 90.0, 'y': 90.0, 'z': 10.0, 'v': 5}
     ]
 
@@ -111,7 +111,7 @@ def main():
                     target_reached_threshold=threshold, 
                     dynamic_target_shift_threshold_prc=dynamic_target_shift_threshold_prc)
     
-    sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=30)
+    sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=300, plot_wind_signal=True)
     positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, targets = sim.startSimulation()
 
     # Plot 3D animation of the drone's trajectory and attitude

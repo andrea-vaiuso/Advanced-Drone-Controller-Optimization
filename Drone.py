@@ -238,11 +238,14 @@ class QuadcopterModel:
             V (float): Wind speed in m/s.
             simulate_wind (bool): Whether to simulate wind effects. Default is True.
         """
-        if simulate_wind: self.delta_b = (3 * self.b * V) / (4 * (np.pi / 180) * self._rpm_to_omega(self.hover_rpm) * self.R)
+        if simulate_wind: 
+            theta_0 = 2 * np.pi / 180  # Initial angle in radians
+            omega = self._rpm_to_omega(self.hover_rpm)
+            self.delta_b = (3/2) * (self.b / (theta_0 * omega * self.R)) * V
         else: self.delta_b = 0.0
 
 
-    def update_state(self, state: dict, target: dict, dt: float) -> dict:
+    def update_state(self, state: dict, target: dict, dt: float) -> None:
         """
         Update the drone's state by computing control commands, mixing motor RPMs,
         and integrating the dynamics.
@@ -252,12 +255,10 @@ class QuadcopterModel:
             target (dict): Target position with keys 'x', 'y', and 'z'.
             dt (float): Time step.
 
-        Returns:
-            dict: Updated state.
         """
         u1, u2, u3, u4 = self.controller.update(state, target, dt)
         rpm1, rpm2, rpm3, rpm4 = self._mixer(u1, u2, u3, u4)
         state["rpm"] = np.array([rpm1, rpm2, rpm3, rpm4])
         state = self._rk4_step(state, dt)
         state['angles'] = np.array([wrap_angle(a) for a in state['angles']])
-        return state
+        self.state = state  # Update the internal state

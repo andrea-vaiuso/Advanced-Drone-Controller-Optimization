@@ -3,6 +3,7 @@ from Drone import QuadcopterModel
 from World import World
 from functools import reduce
 from Wind import dryden_response
+from matplotlib import pyplot as plt
 
 # --- Main: Simulation and Plotting ---
 
@@ -42,9 +43,19 @@ class Simulation:
         self.wind_signal = []
         self.simulate_wind = False
 
-    def setWind(self, max_simulation_time, dt, height=100, airspeed=10, turbulence_level=30):
+    def setWind(self, max_simulation_time, dt, height=100, airspeed=10, turbulence_level=30, plot_wind_signal=False):
         num_steps = int(max_simulation_time / dt)
         self.wind_signal = dryden_response(axis='w', height=height, airspeed=airspeed, turbulence_level=turbulence_level, time_steps=num_steps)
+        # Plot wind signal for debugging
+        if plot_wind_signal:
+            plt.figure(figsize=(10, 4))
+            plt.plot(np.arange(num_steps) * dt, self.wind_signal, label='Wind Signal (w-axis)')
+            plt.title('Wind Signal Over Time')
+            plt.xlabel('Time (s)')
+            plt.ylabel('Wind Speed (m/s)')
+            plt.grid()
+            plt.legend()
+            plt.show()
         self.simulate_wind = True
 
     def _compute_moving_target(self, drone_pos, seg_start, seg_end, v_des, k=1.0):
@@ -122,10 +133,9 @@ class Simulation:
                     target_dynamic = seg_end  # Final waypoint: fixed target
 
             # Update the drone state using the dynamic target
-            self.drone.state = self.drone.update_state(self.drone.state, {'x': target_dynamic[0], 'y': target_dynamic[1], 'z': target_dynamic[2]}, self.dt)
+            self.drone.update_state(self.drone.state, {'x': target_dynamic[0], 'y': target_dynamic[1], 'z': target_dynamic[2]}, self.dt)
             # If wind simulation is enabled, apply wind effects
-            if self.simulate_wind:
-                self.drone.update_wind(self.wind_signal[step], simulate_wind=self.simulate_wind)
+            self.drone.update_wind(self.wind_signal[step], simulate_wind=self.simulate_wind)
                 
             current_time = step * self.dt
 
