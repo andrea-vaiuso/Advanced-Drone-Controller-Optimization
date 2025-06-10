@@ -109,9 +109,9 @@ def main():
                     max_simulation_time=simulation_time,
                     frame_skip=frame_skip, 
                     target_reached_threshold=threshold, 
-                    dynamic_target_shift_threshold_prc=dynamic_target_shift_threshold_prc,
-                    simulate_wind=True,max_gust=20)
+                    dynamic_target_shift_threshold_prc=dynamic_target_shift_threshold_prc)
     
+    sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=30)
     positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, targets = sim.startSimulation()
 
     # Plot 3D animation of the drone's trajectory and attitude

@@ -1,4 +1,3 @@
-
 import numpy as np
 from Controller import QuadCopterController
 from utils import wrap_angle
@@ -7,7 +6,7 @@ class QuadcopterModel:
     def __init__(self, m: float, I: np.ndarray, b: float, d: float, l: float, 
                  Cd: np.ndarray, Ca: np.ndarray, Jr: float,
                  init_state: dict, controller: QuadCopterController,
-                 g: float = 9.81, max_rpm: float = 5000.0):
+                 g: float = 9.81, max_rpm: float = 5000.0, R: float = 0.1):
         """
         Initialize the physical model of the quadcopter.
 
@@ -24,6 +23,7 @@ class QuadcopterModel:
             controller (QuadCopterController): Controller instance.
             g (float): Gravitational acceleration.
             max_rpm (float): Maximum RPM.
+            R (float): Rotor radius (default is 0.1 m).
         """
         self.m = m
         self.I = I
@@ -34,14 +34,14 @@ class QuadcopterModel:
         self.Ca = Ca
         self.Jr = Jr
         self.g = g
+        self.R = R
         self.state = init_state
         self.controller = controller
         self.max_rpm = max_rpm
+        self.delta_b = 0.0
         
         self.max_rpm_sq = (self.max_rpm * 2 * np.pi / 60)**2
-        self._compute_hover_rpm()
-        self.wind_velocity = np.zeros(3)  # Wind velocity vector [vx, vy, vz]
-        self.simulate_wind = False  # Flag to simulate wind gusts
+        self.hover_rpm = self._compute_hover_rpm()
 
     def _compute_hover_rpm(self) -> None:
         """
@@ -60,59 +60,43 @@ class QuadcopterModel:
         """
         return f"Quadcopter Model: state = {self.state}"
 
-    def _translational_dynamics(self,
-                            state: dict,
-                            rho = 1.225, A = 0.1, C_d = 0.47) -> np.ndarray:
+    def _translational_dynamics(self, state: dict) -> np.ndarray:
         """
-        Compute the translational accelerations, optionally including wind.
+        Compute the translational accelerations.
 
         Parameters:
-            state (dict): Current state with keys 'vel' and 'rpm'.
-            rho (float): Air density (default is 1.225 kg/m^3).
-            A (float): Reference area (default is 0.1 m^2).
-            C_d (float): Drag coefficient (default is 0.47).
+            state (dict): Current state.
 
         Returns:
-            np.ndarray: Translational acceleration vector [x_ddot, y_ddot, z_ddot].
+            np.ndarray: Acceleration vector [x_ddot, y_ddot, z_ddot].
         """
-        # parametri aerodinamici
-             # coefficiente di drag
-
-        # 1) scegli se includere la raffica o no
-        if self.simulate_wind:
-            wind = getattr(self, 'wind_velocity', np.zeros(3))
-        else:
-            wind = np.zeros(3)
-
-        # 2) velocità relativa
-        v_rel = state['vel'] - wind
-        speed = np.linalg.norm(v_rel)
-
-        # 3) calcolo drag su v_rel
-        if speed > 0:
-            drag_mag = 0.5 * rho * A * C_d * speed**2
-            drag_vec = drag_mag * (v_rel / speed)
-        else:
-            drag_vec = np.zeros(3)
-
-        # 4) spinta motori (come prima)
         omega = self._rpm_to_omega(state['rpm'])
-        thrust = self.b * np.sum(omega**2)
-
-        # 5) decomposizione thrust in direzione corpo→mondo
+        x_dot, y_dot, z_dot = state['vel']
         roll, pitch, yaw = state['angles']
-        # (riporta qui la tua esatta proiezione, ad es:)
-        ux =  np.cos(yaw) * np.sin(pitch) * np.cos(roll) + np.sin(yaw) * np.sin(roll)
-        uy =  np.sin(yaw) * np.sin(pitch) * np.cos(roll) - np.cos(yaw) * np.sin(roll)
-        uz =  np.cos(pitch) * np.cos(roll)
+        thrust = (self.b + self.delta_b) * np.sum(np.square(omega))
+        
+        v = np.linalg.norm(state['vel'])
+        rho = 1.225  # Air density in kg/m³
+        A = 0.1      # Reference area in m²
+        C_d = 0.47   # Drag coefficient
 
-        # 6) accelerazioni finali
-        x_ddot = thrust/self.m * ux - drag_vec[0]/self.m
-        y_ddot = thrust/self.m * uy - drag_vec[1]/self.m
-        z_ddot = thrust/self.m * uz - drag_vec[2]/self.m - self.g
+        if v > 0:
+            drag_magnitude = 0.5 * rho * A * C_d * v**2
+            drag_vector = drag_magnitude * (state['vel'] / v)
+        else:
+            drag_vector = np.array([0.0, 0.0, 0.0])
+
+        x_ddot = (thrust / self.m *
+                  (np.cos(yaw) * np.sin(pitch) * np.cos(roll) + np.sin(yaw) * np.sin(roll))
+                  - drag_vector[0] / self.m)
+        y_ddot = (thrust / self.m *
+                  (np.sin(yaw) * np.sin(pitch) * np.cos(roll) - np.cos(yaw) * np.sin(roll))
+                  - drag_vector[1] / self.m)
+        z_ddot = (thrust / self.m *
+                  (np.cos(pitch) * np.cos(roll))
+                  - drag_vector[2] / self.m - self.g)
 
         return np.array([x_ddot, y_ddot, z_ddot])
-
 
     def _rotational_dynamics(self, state: dict) -> np.ndarray:
         """
@@ -126,9 +110,10 @@ class QuadcopterModel:
         """
         omega = self._rpm_to_omega(state['rpm'])
         phi_dot, theta_dot, psi_dot = state['ang_vel']
+        tot_b = (self.b + self.delta_b)
         
-        roll_torque = self.l * self.b * (omega[3]**2 - omega[1]**2)
-        pitch_torque = self.l * self.b * (omega[2]**2 - omega[0]**2)
+        roll_torque = self.l * tot_b * (omega[3]**2 - omega[1]**2)
+        pitch_torque = self.l * tot_b * (omega[2]**2 - omega[0]**2)
         yaw_torque = self.d * (omega[0]**2 - omega[1]**2 + omega[2]**2 - omega[3]**2)
         Omega_r = self.Jr * (omega[0] - omega[1] + omega[2] - omega[3])
 
@@ -157,6 +142,18 @@ class QuadcopterModel:
             np.ndarray: Angular velocities in rad/s.
         """
         return rpm * 2 * np.pi / 60
+    
+    def _omega_to_rpm(self, omega: np.ndarray) -> np.ndarray:
+        """
+        Convert angular velocity (rad/s) to motor RPM.
+
+        Parameters:
+            omega (np.ndarray): Array of angular velocities in rad/s.
+
+        Returns:
+            np.ndarray: Motor RPMs.
+        """
+        return omega * 60 / (2 * np.pi)
     
     def _mixer(self, u1: float, u2: float, u3: float, u4: float) -> tuple:
         """
@@ -232,6 +229,18 @@ class QuadcopterModel:
         new_state['rpm'] = state['rpm']
         
         return new_state
+    
+    def update_wind(self, V: float, simulate_wind=True) -> None:
+        """
+        Update the wind signal for the quadcopter model.
+
+        Parameters:
+            V (float): Wind speed in m/s.
+            simulate_wind (bool): Whether to simulate wind effects. Default is True.
+        """
+        if simulate_wind: self.delta_b = (3 * self.b * V) / (4 * (np.pi / 180) * self._rpm_to_omega(self.hover_rpm) * self.R)
+        else: self.delta_b = 0.0
+
 
     def update_state(self, state: dict, target: dict, dt: float) -> dict:
         """
