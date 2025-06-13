@@ -23,7 +23,7 @@ class QuadcopterModel:
             controller (QuadCopterController): Controller instance.
             g (float): Gravitational acceleration.
             max_rpm (float): Maximum RPM.
-            R (float): Rotor radius (default is 0.1 m).
+            R (float): Rotor radius in meters.
         """
         self.m = m
         self.I = I
@@ -241,11 +241,11 @@ class QuadcopterModel:
         if simulate_wind: 
             theta_0 = 2 * np.pi / 180  # Initial angle in radians
             omega = self._rpm_to_omega(self.hover_rpm)
-            self.delta_b = (3/2) * (self.b / (theta_0 * omega * self.R)) * V
+            self.delta_b = (3/2) * (self.b / ((theta_0 * omega * self.R) + 1e-4)) * V
         else: self.delta_b = 0.0
 
 
-    def update_state(self, state: dict, target: dict, dt: float) -> None:
+    def update_state(self, state: dict, target: dict, dt: float, ground_control: bool = True) -> None:
         """
         Update the drone's state by computing control commands, mixing motor RPMs,
         and integrating the dynamics.
@@ -256,9 +256,20 @@ class QuadcopterModel:
             dt (float): Time step.
 
         """
-        u1, u2, u3, u4 = self.controller.update(state, target, dt)
-        rpm1, rpm2, rpm3, rpm4 = self._mixer(u1, u2, u3, u4)
-        state["rpm"] = np.array([rpm1, rpm2, rpm3, rpm4])
-        state = self._rk4_step(state, dt)
-        state['angles'] = np.array([wrap_angle(a) for a in state['angles']])
+
+        u1, u2, u3, u4 = self.controller.update(state, target, dt) # Control inputs from the controller
+
+        rpm1, rpm2, rpm3, rpm4 = self._mixer(u1, u2, u3, u4) # Compute RPMs for each motor
+        
+        state["rpm"] = np.array([rpm1, rpm2, rpm3, rpm4]) # Update the state with the new RPMs
+
+        state = self._rk4_step(state, dt) # Perform a Runge-Kutta 4th order integration step to update the state
+
+        state['angles'] = np.array([wrap_angle(a) for a in state['angles']]) # Ensure the state is within valid ranges
+
+        # If the drone hits the ground, reset its altitude to 0
+        if state['pos'][2] < 0 and ground_control:
+            state['pos'][2] = 0
+            print("[WARNING] Drone has hit the ground! Resetting altitude to 0.")
+        
         self.state = state  # Update the internal state

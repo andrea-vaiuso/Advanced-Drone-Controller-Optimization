@@ -87,24 +87,48 @@ class World:
                 (area[1] + 0.5) * self.grid_size, 
                 (area[2] + 0.5) * self.grid_size)
 
-    def get_areas_in_circle(self, x, y, height, radius):
+    def get_areas_in_circle(self, x: float, y: float, height: float, radius: float, include_areas_out_of_bounds: bool = False) -> tuple:
+        """
+        Returns a list of area center points and their parameters within a circle of given radius.
+        The circle is defined by its center (x, y) and height, and the radius is in grid units.
+        If include_areas_out_of_bounds is True, areas outside the world bounds are also included.
+
+        Parameters:
+            x (float): X coordinate of the circle center.
+            y (float): Y coordinate of the circle center.
+            height (float): Height at which to check the areas.
+            radius (float): Radius of the circle in grid units.
+            include_areas_out_of_bounds (bool): If True, includes areas outside the world bounds.
+
+        Returns:
+            tuple: A tuple containing two lists:
+                - areas_in_circle: List of area center points (x, y, z).
+                - parameters_in_circle: List of dictionaries with area parameters.
+        """
         areas_in_circle = []
         parameters_in_circle = []
         radius_squared = radius ** 2
-        
-        # Limiti del grid
-        min_x = max(0, x - radius)
-        max_x = min(self.max_world_size * self.grid_size, x + radius)
-        min_y = max(0, y - radius)
-        max_y = min(self.max_world_size * self.grid_size, y + radius)
 
+        # Calculate the bounds of the circle
+        if include_areas_out_of_bounds:
+            min_x = x - radius
+            max_x = x + radius
+            min_y = y - radius
+            max_y = y + radius
+        else:
+            min_x = max(0, x - radius)
+            max_x = min(self.max_world_size * self.grid_size, x + radius)
+            min_y = max(0, y - radius)
+            max_y = min(self.max_world_size * self.grid_size, y + radius)
+
+        # Create ranges for x, y, and z coordinates based on the grid size
         x_range = np.arange(min_x, max_x + 1, self.grid_size)
         y_range = np.arange(min_y, max_y + 1, self.grid_size)
         z_range = np.arange(0, height * self.grid_size, self.grid_size)
 
+        # Create a meshgrid for x and y coordinates
         x_mesh, y_mesh = np.meshgrid(x_range, y_range, indexing='ij')
         x_flat, y_flat = x_mesh.ravel(), y_mesh.ravel()
-
         distances_sq = (x_flat - x) ** 2 + (y_flat - y) ** 2
         valid_indices = np.where(distances_sq <= radius_squared)[0]
 
@@ -112,10 +136,10 @@ class World:
             i, j = x_flat[idx], y_flat[idx]
             for z in z_range:
                 area_center = self.get_area_center_point(i, j, z)
+                # Get the area parameters for the center point
                 area_params = self.get_area_parameters(i, j, z)
                 areas_in_circle.append(area_center)
                 parameters_in_circle.append(area_params)
-
         return areas_in_circle, parameters_in_circle
 
     def save_world(self, filename):

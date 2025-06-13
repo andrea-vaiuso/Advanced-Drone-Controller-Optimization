@@ -4,9 +4,9 @@ import matplotlib.animation as animation
 import numpy as np
 from utils import euler_to_rot
 
-def plotLogData(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, waypoints):
+def plotLogData(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, spl_history, swl_history, waypoints):
      # --- Post-Simulation Plots (Positions, Attitude, RPM, Speeds) ---
-    fig, axs = plt.subplots(3, 2, figsize=(14, 10))
+    fig, axs = plt.subplots(4, 2, figsize=(14, 10))
     
     # X Position
     axs[0, 0].plot(time_history, positions[:, 0], label='X Position')
@@ -60,17 +60,60 @@ def plotLogData(positions, angles_history, rpms_history, time_history, horiz_spe
     
     axs[0, 1].set_xlabel('Time (s)')
     axs[1, 1].set_xlabel('Time (s)')
+
+    # SPL and SWL
+    axs[3, 0].plot(time_history, spl_history, label='SPL', color='orange')
+    axs[3, 0].set_title('Sound Pressure Level (SPL)')
+    axs[3, 0].set_ylabel('Level (dB)')
+    axs[3, 0].set_xlabel('Time (s)')
+    axs[3, 0].legend()
+    axs[3, 0].grid(True)
+
+    axs[3, 1].plot(time_history, swl_history, label='SWL', color='purple')
+    axs[3, 1].set_title('Sound Power Level (SWL)')
+    axs[3, 1].set_ylabel('Level (dB)')
+    axs[3, 1].set_xlabel('Time (s)')
+    axs[3, 1].legend()
+    axs[3, 1].grid(True)
     
     fig.suptitle('Drone Simulation Data vs Time', fontsize=16)
     fig.tight_layout(rect=[0, 0, 1, 0.95])
     plt.show()
+
+def saveLogData(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, spl_history, swl_history, waypoints, filename):
+    """
+    Save the drone simulation data to a CSV file.
+    """
+    import pandas as pd
+
+    data = {
+        'Time': time_history,
+        'X Position': positions[:, 0],
+        'Y Position': positions[:, 1],
+        'Z Position': positions[:, 2],
+        'Pitch': angles_history[:, 0],
+        'Roll': angles_history[:, 1],
+        'Yaw': angles_history[:, 2],
+        'RPM1': rpms_history[:, 0],
+        'RPM2': rpms_history[:, 1],
+        'RPM3': rpms_history[:, 2],
+        'RPM4': rpms_history[:, 3],
+        'Horizontal Speed': horiz_speed_history,
+        'Vertical Speed': vertical_speed_history,
+        'SPL': spl_history,
+        'SWL': swl_history,
+        'Waypoints': [f"{wp['x']},{wp['y']},{wp['z']}" for wp in waypoints]
+    }
+
+    df = pd.DataFrame(data)
+    df.to_csv(filename, index=False)
+    print(f"Data saved to {filename}")
 
 
 def plot3DAnimation(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, targets, waypoints, start_position, dt, frame_skip):
     """
     Plot a 3D animation of the drone's trajectory and attitude over time.
     """
-    
     # --- Animation: 3D Trajectory of the Drone ---
     fig_anim = plt.figure(figsize=(10, 8))
     ax_anim = fig_anim.add_subplot(111, projection='3d')

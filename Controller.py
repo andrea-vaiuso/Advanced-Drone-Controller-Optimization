@@ -97,13 +97,13 @@ class QuadCopterController:
         x_t, y_t, z_t = target['x'], target['y'], target['z']
 
         # Outer loop: position control with feed-forward for hover
-        compensation = np.clip(1.0 / (np.cos(pitch) * np.cos(roll)), 1.0, 1.5)
-        hover_thrust = self.m * self.g * compensation
-        pid_z_output = self.pid_z.update(z, z_t, dt)
-        thrust_command = hover_thrust + pid_z_output
+        compensation = np.clip(1.0 / (np.cos(pitch) * np.cos(roll)), 1.0, 1.5) # Compensation factor for hover thrust
+        hover_thrust = self.m * self.g * compensation # Hover thrust based on mass and gravity
+        pid_z_output = self.pid_z.update(z, z_t, dt) # Altitude control output
+        thrust_command = hover_thrust + pid_z_output # Total thrust command including altitude control
 
-        pitch_des = np.clip(self.pid_x.update(x, x_t, dt), -self.max_angle, self.max_angle)
-        roll_des  = np.clip(-self.pid_y.update(y, y_t, dt), -self.max_angle, self.max_angle)
+        pitch_des = np.clip(self.pid_x.update(x, x_t, dt), -self.max_angle, self.max_angle) # Desired pitch based on x position
+        roll_des  = np.clip(-self.pid_y.update(y, y_t, dt), -self.max_angle, self.max_angle) # Desired roll based on y position
         
         # Compute desired yaw based on target position
         dx = target['x'] - x
@@ -111,12 +111,12 @@ class QuadCopterController:
         yaw_des = np.arctan2(dy, dx)
         
         # Inner loop: attitude control
-        roll_command = self.pid_roll.update(roll, roll_des, dt)
-        pitch_command = self.pid_pitch.update(pitch, pitch_des, dt)
-        yaw_command = self.pid_yaw.update(yaw, 0, dt)  # alternatively, use yaw_des to rotate towards the target
+        roll_command = self.pid_roll.update(roll, roll_des, dt) # Roll command based on desired roll
+        pitch_command = self.pid_pitch.update(pitch, pitch_des, dt) # Pitch command based on desired pitch
+        yaw_command = self.pid_yaw.update(yaw, 0, dt)  # Yaw command based on desired yaw ## (Alternatively, use yaw_des to rotate towards the target)
 
         # Saturate the commands
-        thrust_command = np.clip(thrust_command, 0, self.u1_limit)
+        thrust_command = np.clip(thrust_command, 0, self.u1_limit) 
         roll_command = np.clip(roll_command, -self.u2_limit, self.u2_limit)
         pitch_command = np.clip(pitch_command, -self.u3_limit, self.u3_limit)
         yaw_command = np.clip(yaw_command, -self.u4_limit, self.u4_limit)

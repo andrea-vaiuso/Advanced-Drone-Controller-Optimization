@@ -1,10 +1,10 @@
-
 import numpy as np
 from Drone import QuadcopterModel
 from Controller import QuadCopterController
 from Simulation import Simulation
 from plotting_functions import plot3DAnimation, plotLogData
 from World import World
+from Noise import NoiseModel
 
 def main():
     """
@@ -13,8 +13,8 @@ def main():
     """
     # Simulation parameters
     dt = 0.007
-    simulation_time = 200.0
-    frame_skip = 8
+    simulation_time = 100.0
+    frame_skip = 8 # Number of frames to skip for smoother animation
     threshold = 2.0  # Stop simulation if within 2 meters of final target
     dynamic_target_shift_threshold_prc = 0.7 # Shift to next segment if a certain percentage of current segment is covered
 
@@ -32,16 +32,16 @@ def main():
     # ]
 
     waypoints = [
-        {'x': 0.0, 'y': 0.0, 'z': 10.0, 'v': 5},
-        {'x': 10.0, 'y': 10.0, 'z': 10.0, 'v': 5},
-        {'x': 20.0, 'y': 20.0, 'z': 10.0, 'v': 5},
-        {'x': 30.0, 'y': 30.0, 'z': 10.0, 'v': 5},
-        {'x': 40.0, 'y': 40.0, 'z': 10.0, 'v': 5},
-        {'x': 50.0, 'y': 50.0, 'z': 10.0, 'v': 5},
-        {'x': 60.0, 'y': 60.0, 'z': 10.0, 'v': 5},
-        {'x': 70.0, 'y': 70.0, 'z': 10.0, 'v': 5},
-        {'x': 80.0, 'y': 80.0, 'z': 10.0, 'v': 5},
-        {'x': 90.0, 'y': 90.0, 'z': 10.0, 'v': 5}
+        {'x': 0.0, 'y': 0.0, 'z': 90.0, 'v': 5},
+        # {'x': 10.0, 'y': 10.0, 'z': 10.0, 'v': 5},
+        # {'x': 20.0, 'y': 20.0, 'z': 10.0, 'v': 5},
+        # {'x': 30.0, 'y': 30.0, 'z': 10.0, 'v': 5},
+        {'x': 40.0, 'y': 40.0, 'z': 90.0, 'v': 5},
+        # {'x': 50.0, 'y': 50.0, 'z': 10.0, 'v': 5},
+        # {'x': 60.0, 'y': 60.0, 'z': 10.0, 'v': 5},
+        # {'x': 70.0, 'y': 70.0, 'z': 10.0, 'v': 5},
+        # {'x': 80.0, 'y': 80.0, 'z': 10.0, 'v': 5},
+        {'x': 90.0, 'y': 90.0, 'z': 90.0, 'v': 5}
     ]
 
     # Initial drone state
@@ -54,7 +54,7 @@ def main():
     }
     start_position = state['pos'].copy()
 
-    # PID controller settings (yaw gains remain fixed)
+    # PID controller settings (yaw remain fixed)
     kp_yaw, ki_yaw, kd_yaw = 0.5, 1e-6, 0.1
     kp_pos, ki_pos, kd_pos = 0.080397, 6.6749e-07, 0.18084
     kp_alt, ki_alt, kd_alt = 6.4593, 0.00042035, 10.365
@@ -101,6 +101,8 @@ def main():
     # Initialize the world
     world = World.load_world("Worlds/world_winterthur.pkl")
 
+    noise_model = NoiseModel()
+
     # Initialize the simulation
     sim = Simulation(drone,
                     world,
@@ -109,14 +111,15 @@ def main():
                     max_simulation_time=simulation_time,
                     frame_skip=frame_skip, 
                     target_reached_threshold=threshold, 
-                    dynamic_target_shift_threshold_prc=dynamic_target_shift_threshold_prc)
+                    dynamic_target_shift_threshold_prc=dynamic_target_shift_threshold_prc,
+                    noise_model=noise_model)
     
-    sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=300, plot_wind_signal=True)
-    positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, targets = sim.startSimulation()
+    sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=400, plot_wind_signal=True)
+    positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, spl_history, swl_history, targets  = sim.startSimulation(stop_at_target=False)
 
-    # Plot 3D animation of the drone's trajectory and attitude
+    # Plot 3D animation of the drone's trajectory
     plot3DAnimation(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, targets, waypoints, start_position, dt, frame_skip)
-    plotLogData(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, waypoints)
-   
+    plotLogData(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, spl_history, swl_history, waypoints)
+
 if __name__ == "__main__":
     main()
