@@ -13,7 +13,7 @@ def main():
     """
     # Simulation parameters
     dt = 0.007
-    simulation_time = 100.0
+    simulation_time = 50.0
     frame_skip = 8 # Number of frames to skip for smoother animation
     threshold = 2.0  # Stop simulation if within 2 meters of final target
     dynamic_target_shift_threshold_prc = 0.7 # Shift to next segment if a certain percentage of current segment is covered

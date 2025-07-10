@@ -1,4 +1,3 @@
-from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
@@ -110,16 +109,18 @@ def saveLogData(positions, angles_history, rpms_history, time_history, horiz_spe
     print(f"Data saved to {filename}")
 
 
-def plot3DAnimation(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, targets, waypoints, start_position, dt, frame_skip):
+def plot3DAnimation(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, 
+                    targets, waypoints, start_position, dt, frame_skip,
+                    window=(100, 100, 100)):
     """
     Plot a 3D animation of the drone's trajectory and attitude over time.
     """
     # --- Animation: 3D Trajectory of the Drone ---
     fig_anim = plt.figure(figsize=(10, 8))
     ax_anim = fig_anim.add_subplot(111, projection='3d')
-    ax_anim.set_xlim(0, 100)
-    ax_anim.set_ylim(0, 100)
-    ax_anim.set_zlim(0, 100)
+    ax_anim.set_xlim(0, window[0])
+    ax_anim.set_ylim(0, window[1])
+    ax_anim.set_zlim(0, window[2])
     ax_anim.set_xlabel('X')
     ax_anim.set_ylabel('Y')
     ax_anim.set_zlabel('Z')
@@ -206,3 +207,4 @@ def plot3DAnimation(positions, angles_history, rpms_history, time_history, horiz
     ani = animation.FuncAnimation(fig_anim, update_anim, frames=len(positions),
                                   init_func=init_anim, interval=50, blit=False, repeat=True)
     plt.show()
+
