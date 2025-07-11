@@ -4,7 +4,8 @@ from Controller import QuadCopterController
 from Simulation import Simulation
 from plotting_functions import plot3DAnimation, plotLogData
 from World import World
-from Noise import NoiseModel
+from Noise.DNNModel import RotorSoundModel as DNNModel
+from Noise.EmpaModel import NoiseModel as EmpaModel
 
 def main():
     """
@@ -101,7 +102,20 @@ def main():
     # Initialize the world
     world = World.load_world("Worlds/world_winterthur.pkl")
 
-    noise_model = NoiseModel()
+    noise_model_dnn = DNNModel(
+        rpm_reference=2500,
+        filename="Noise/angles_swl.npy"
+    )
+
+    noise_model_empa = EmpaModel(
+        scaler_filename="Noise/scaler.joblib"
+    )
+
+    noise_model_empa.load_model("Noise/model_coefficients.npz")
+
+    # Choose the noise model to use
+    noise_model = noise_model_dnn  # Use DNN model
+    # noise_model = noise_model_empa # Use Empa model
 
     # Initialize the simulation
     sim = Simulation(drone,
@@ -109,8 +123,8 @@ def main():
                     waypoints, 
                     dt=dt,
                     max_simulation_time=simulation_time,
-                    frame_skip=frame_skip, 
-                    target_reached_threshold=threshold, 
+                    frame_skip=frame_skip,
+                    target_reached_threshold=threshold,
                     dynamic_target_shift_threshold_prc=dynamic_target_shift_threshold_prc,
                     noise_model=noise_model)
     
@@ -118,7 +132,17 @@ def main():
     positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, spl_history, swl_history, targets  = sim.startSimulation(stop_at_target=False)
 
     # Plot 3D animation of the drone's trajectory
-    plot3DAnimation(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, targets, waypoints, start_position, dt, frame_skip)
+    plot3DAnimation(positions, 
+                    angles_history, 
+                    rpms_history, 
+                    time_history, 
+                    horiz_speed_history, 
+                    vertical_speed_history, 
+                    targets, 
+                    waypoints, 
+                    start_position, 
+                    dt, 
+                    frame_skip)
     plotLogData(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, spl_history, swl_history, waypoints)
 
 if __name__ == "__main__":

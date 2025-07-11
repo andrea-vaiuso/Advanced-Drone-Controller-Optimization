@@ -1,6 +1,6 @@
 import numpy as np
 
-class NoiseModel():
+class RotorSoundModel():
     def __init__(self, rpm_reference = 2500, filename = "angles_swl.npy"):
         """
         Initialize the noise model by loading the noise model data from a npy file.

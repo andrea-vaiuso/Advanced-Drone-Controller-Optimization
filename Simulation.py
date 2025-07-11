@@ -4,7 +4,8 @@ from World import World
 from functools import reduce
 from Wind import dryden_response
 from matplotlib import pyplot as plt
-from Noise import NoiseModel
+from Noise.DNNModel import RotorSoundModel
+import time
 
 MIN_HEIGHT_FROM_GROUND = 1e-4  # Minimum height from ground to avoid singularities in noise calculations
 
@@ -14,7 +15,7 @@ class Simulation:
     def __init__(self, drone: QuadcopterModel, world:World, waypoints: list, 
                  dt=0.007, max_simulation_time=200.0, frame_skip=8, 
                  target_reached_threshold=2.0, dynamic_target_shift_threshold_prc=0.7,
-                 noise_model: NoiseModel = None, noise_annoyance_radius=100):
+                 noise_model: RotorSoundModel = None, noise_annoyance_radius=100):
         """
         Initialize the simulation with the drone model, world, waypoints, and parameters.
         Parameters:
@@ -50,6 +51,7 @@ class Simulation:
         self.simulate_wind = False
         self.noise_model = noise_model
         self.noise_annoyance_radius = noise_annoyance_radius
+        self.simulation_time = 0.0
 
     def setWind(self, max_simulation_time, dt, height=100, airspeed=10, turbulence_level=30, axis=['u','v','w'], plot_wind_signal=False):
         """
@@ -139,6 +141,11 @@ class Simulation:
         The simulation runs for a maximum duration defined by max_simulation_time, and data is collected
         at specified intervals defined by frame_skip.
         """
+        # --- Initialize time
+        self.simulation_time = 0.0
+        # --- Start timer
+        t_0 = time.time()
+
         # --- Initialize Dynamic Target Strategy ---
         current_seg_idx = 0
         seg_start = self.drone.state['pos'].copy()
@@ -160,6 +167,8 @@ class Simulation:
         swl_history = []
 
         num_steps = int(self.max_simulation_time / self.dt)
+
+
 
         # Simulation loop
         for step in range(num_steps):
@@ -224,5 +233,17 @@ class Simulation:
             if np.linalg.norm(self.drone.state['pos'] - final_target) < self.target_reached_threshold and stop_at_target:
                 print(f"Final target reached at time: {current_time:.2f} s")
                 break
+            
+        # --- End timer
+        self.simulation_time = time.time() - t_0
+        print(f"Simulation completed in {self.simulation_time:.2f} seconds.")
 
-        return np.array(positions), np.array(angles_history), np.array(rpms_history), np.array(time_history), np.array(horiz_speed_history), np.array(vertical_speed_history), np.array(spl_history), np.array(swl_history), np.array(targets)
+        return (np.array(positions), 
+                np.array(angles_history), 
+                np.array(rpms_history), 
+                np.array(time_history), 
+                np.array(horiz_speed_history), 
+                np.array(vertical_speed_history),
+                np.array(spl_history), 
+                np.array(swl_history), 
+                np.array(targets))
