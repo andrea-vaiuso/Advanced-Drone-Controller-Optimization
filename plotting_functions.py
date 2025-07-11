@@ -3,9 +3,9 @@ import matplotlib.animation as animation
 import numpy as np
 from utils import euler_to_rot
 
-def plotLogData(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, spl_history, swl_history, waypoints):
+def plotLogData(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, spl_history, swl_history, thrust_history, waypoints):
      # --- Post-Simulation Plots (Positions, Attitude, RPM, Speeds) ---
-    fig, axs = plt.subplots(4, 2, figsize=(14, 10))
+    fig, axs = plt.subplots(5, 2, figsize=(14, 10))
     
     # X Position
     axs[0, 0].plot(time_history, positions[:, 0], label='X Position')
@@ -74,6 +74,14 @@ def plotLogData(positions, angles_history, rpms_history, time_history, horiz_spe
     axs[3, 1].set_xlabel('Time (s)')
     axs[3, 1].legend()
     axs[3, 1].grid(True)
+
+    # Thrust
+    axs[4, 0].plot(time_history, thrust_history, label='Thrust', color='cyan')
+    axs[4, 0].set_title('Thrust Over Time')
+    axs[4, 0].set_ylabel('Thrust (N)')
+    axs[4, 0].set_xlabel('Time (s)')
+    axs[4, 0].legend()
+    axs[4, 0].grid(True)
     
     fig.suptitle('Drone Simulation Data vs Time', fontsize=16)
     fig.tight_layout(rect=[0, 0, 1, 0.95])

@@ -36,9 +36,11 @@ class QuadcopterModel:
         self.g = g
         self.R = R
         self.state = init_state
+        self.init_state = init_state.copy()  # Store the initial state for reset
         self.controller = controller
         self.max_rpm = max_rpm
         self.delta_b = 0.0
+        self.thrust = 0.0 
         
         self.max_rpm_sq = (self.max_rpm * 2 * np.pi / 60)**2
         self.hover_rpm = self._compute_hover_rpm()
@@ -73,26 +75,29 @@ class QuadcopterModel:
         omega = self._rpm_to_omega(state['rpm'])
         x_dot, y_dot, z_dot = state['vel']
         roll, pitch, yaw = state['angles']
-        thrust = (self.b + self.delta_b) * np.sum(np.square(omega))
+
+        # Total thrust from all motors plus any additional thrust from wind
+        self.thrust = (self.b + self.delta_b) * np.sum(np.square(omega)) 
         
         v = np.linalg.norm(state['vel'])
         rho = 1.225  # Air density in kg/m³
         A = 0.1      # Reference area in m²
         C_d = 0.47   # Drag coefficient
 
+        # Compute drag force if the velocity is non-zero
         if v > 0:
             drag_magnitude = 0.5 * rho * A * C_d * v**2
             drag_vector = drag_magnitude * (state['vel'] / v)
         else:
             drag_vector = np.array([0.0, 0.0, 0.0])
 
-        x_ddot = (thrust / self.m *
+        x_ddot = (self.thrust / self.m *
                   (np.cos(yaw) * np.sin(pitch) * np.cos(roll) + np.sin(yaw) * np.sin(roll))
                   - drag_vector[0] / self.m)
-        y_ddot = (thrust / self.m *
+        y_ddot = (self.thrust / self.m *
                   (np.sin(yaw) * np.sin(pitch) * np.cos(roll) - np.cos(yaw) * np.sin(roll))
                   - drag_vector[1] / self.m)
-        z_ddot = (thrust / self.m *
+        z_ddot = (self.thrust / self.m *
                   (np.cos(pitch) * np.cos(roll))
                   - drag_vector[2] / self.m - self.g)
 
@@ -110,6 +115,8 @@ class QuadcopterModel:
         """
         omega = self._rpm_to_omega(state['rpm'])
         phi_dot, theta_dot, psi_dot = state['ang_vel']
+
+        # Adding the wind effect to the thrust coefficient
         tot_b = (self.b + self.delta_b)
         
         roll_torque = self.l * tot_b * (omega[3]**2 - omega[1]**2)
@@ -131,7 +138,8 @@ class QuadcopterModel:
 
         return np.array([phi_ddot, theta_ddot, psi_ddot])
     
-    def _rpm_to_omega(self, rpm: np.ndarray) -> np.ndarray:
+    @staticmethod
+    def _rpm_to_omega(rpm: np.ndarray) -> np.ndarray:
         """
         Convert motor RPM to angular velocity (rad/s).
 
@@ -143,7 +151,8 @@ class QuadcopterModel:
         """
         return rpm * 2 * np.pi / 60
     
-    def _omega_to_rpm(self, omega: np.ndarray) -> np.ndarray:
+    @staticmethod
+    def _omega_to_rpm(omega: np.ndarray) -> np.ndarray:
         """
         Convert angular velocity (rad/s) to motor RPM.
 
@@ -245,7 +254,7 @@ class QuadcopterModel:
         else: self.delta_b = 0.0
 
 
-    def update_state(self, state: dict, target: dict, dt: float, ground_control: bool = True) -> None:
+    def update_state(self, state: dict, target: dict, dt: float, ground_control: bool = True, hit_accel_threshold: float = 20.0) -> None:
         """
         Update the drone's state by computing control commands, mixing motor RPMs,
         and integrating the dynamics.
@@ -254,7 +263,8 @@ class QuadcopterModel:
             state (dict): Current state.
             target (dict): Target position with keys 'x', 'y', and 'z'.
             dt (float): Time step.
-
+            ground_control (bool): Whether to apply ground control logic. Default is True.
+            hit_accel_threshold (float): Threshold for detecting a hard landing. Default is 20.0 m/s² following MIL-STD-1290A.
         """
 
         u1, u2, u3, u4 = self.controller.update(state, target, dt) # Control inputs from the controller
@@ -267,9 +277,23 @@ class QuadcopterModel:
 
         state['angles'] = np.array([wrap_angle(a) for a in state['angles']]) # Ensure the state is within valid ranges
 
-        # If the drone hits the ground, reset its altitude to 0
-        if state['pos'][2] < 0 and ground_control:
+        state['thrust'] = self.thrust  # Update the thrust in the state
+
+        # Ground control logic
+        if state['pos'][2] <= 0 and ground_control:
             state['pos'][2] = 0
-            print("[WARNING] Drone has hit the ground! Resetting altitude to 0.")
+            state['vel'][2] = 0  # Reset vertical velocity to zero
+            # check if vertical acceleration is too high and differenciate from landing to hit
+            if state['vel'][2] < -hit_accel_threshold:  # If the vertical velocity is exceeds the threshold
+                print("[WARNING] Drone has hit the ground")
+            else:
+                print("[INFO] Drone has landed.")
         
         self.state = state  # Update the internal state
+
+    def reset_state(self) -> None:
+        """
+        Reset the drone's state to the initial state.
+        """
+        self.state = self.init_state.copy()
+        self.delta_b = 0.0

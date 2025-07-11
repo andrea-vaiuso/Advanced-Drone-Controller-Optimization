@@ -51,7 +51,8 @@ def main():
         'vel': np.array([0.0, 0.0, 0.0]),
         'angles': np.array([0.0, 0.0, 0.0]),
         'ang_vel': np.array([0.0, 0.0, 0.0]),
-        'rpm': np.array([0.0, 0.0, 0.0, 0.0])
+        'rpm': np.array([0.0, 0.0, 0.0, 0.0]),
+        'thrust': 0.0,  # Initial thrust
     }
     start_position = state['pos'].copy()
 
@@ -128,22 +129,32 @@ def main():
                     dynamic_target_shift_threshold_prc=dynamic_target_shift_threshold_prc,
                     noise_model=noise_model)
     
-    sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=400, plot_wind_signal=True)
-    positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, spl_history, swl_history, targets  = sim.startSimulation(stop_at_target=False)
+    sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=400, plot_wind_signal=False)
+    sim.startSimulation(stop_at_target=False)
 
     # Plot 3D animation of the drone's trajectory
-    plot3DAnimation(positions, 
-                    angles_history, 
-                    rpms_history, 
-                    time_history, 
-                    horiz_speed_history, 
-                    vertical_speed_history, 
-                    targets, 
+    plot3DAnimation(np.array(sim.positions), 
+                    np.array(sim.angles_history), 
+                    np.array(sim.rpms_history), 
+                    np.array(sim.time_history), 
+                    np.array(sim.horiz_speed_history), 
+                    np.array(sim.vertical_speed_history), 
+                    np.array(sim.targets), 
                     waypoints, 
                     start_position, 
                     dt, 
                     frame_skip)
-    plotLogData(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, spl_history, swl_history, waypoints)
+    
+    plotLogData(np.array(sim.positions), 
+                np.array(sim.angles_history), 
+                np.array(sim.rpms_history), 
+                np.array(sim.time_history), 
+                np.array(sim.horiz_speed_history), 
+                np.array(sim.vertical_speed_history), 
+                np.array(sim.spl_history), 
+                np.array(sim.swl_history),
+                np.array(sim.thrust_history), 
+                waypoints)
 
 if __name__ == "__main__":
     main()
