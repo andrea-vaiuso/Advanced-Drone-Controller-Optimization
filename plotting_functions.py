@@ -3,89 +3,97 @@ import matplotlib.animation as animation
 import numpy as np
 from utils import euler_to_rot
 
-def plotLogData(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, spl_history, swl_history, thrust_history, waypoints):
-     # --- Post-Simulation Plots (Positions, Attitude, RPM, Speeds) ---
-    fig, axs = plt.subplots(5, 2, figsize=(14, 10))
+def plotLogData(log_dict, time, waypoints=None, ncols=2):
+    """
+    Dynamically plot simulation data with per-plot legend/grid flags and configurable columns.
     
-    # X Position
-    axs[0, 0].plot(time_history, positions[:, 0], label='X Position')
-    for wp in waypoints:
-        axs[0, 0].axhline(y=wp['x'], linestyle='--', color='r', label='Waypoint X' if wp == waypoints[0] else None)
-    axs[0, 0].set_title('X Position')
-    axs[0, 0].set_ylabel('X (m)')
-    axs[0, 0].legend()
-    
-    # Y Position
-    axs[1, 0].plot(time_history, positions[:, 1], label='Y Position')
-    for wp in waypoints:
-        axs[1, 0].axhline(y=wp['y'], linestyle='--', color='r', label='Waypoint Y' if wp == waypoints[0] else None)
-    axs[1, 0].set_title('Y Position')
-    axs[1, 0].set_ylabel('Y (m)')
-    axs[1, 0].legend()
-    
-    # Z Position
-    axs[2, 0].plot(time_history, positions[:, 2], label='Z Position')
-    for wp in waypoints:
-        axs[2, 0].axhline(y=wp['z'], linestyle='--', color='r', label='Waypoint Z' if wp == waypoints[0] else None)
-    axs[2, 0].set_title('Z Position')
-    axs[2, 0].set_ylabel('Z (m)')
-    axs[2, 0].set_xlabel('Time (s)')
-    axs[2, 0].legend()
-    
-    # Attitude: Pitch, Roll, Yaw
-    axs[0, 1].plot(time_history, angles_history[:, 0], label='Pitch')
-    axs[0, 1].plot(time_history, angles_history[:, 1], label='Roll')
-    axs[0, 1].plot(time_history, angles_history[:, 2], label='Yaw')
-    axs[0, 1].set_title('Attitude (Pitch, Roll, Yaw)')
-    axs[0, 1].set_ylabel('Angle (rad)')
-    axs[0, 1].legend()
-    
-    # Motor RPMs
-    axs[1, 1].plot(time_history, rpms_history[:, 0], label='RPM1')
-    axs[1, 1].plot(time_history, rpms_history[:, 1], label='RPM2')
-    axs[1, 1].plot(time_history, rpms_history[:, 2], label='RPM3')
-    axs[1, 1].plot(time_history, rpms_history[:, 3], label='RPM4')
-    axs[1, 1].set_title('Motor RPMs')
-    axs[1, 1].set_ylabel('RPM')
-    axs[1, 1].legend()
-    
-    # Speeds: Horizontal and Vertical
-    axs[2, 1].plot(time_history, horiz_speed_history, label='Horizontal Speed', color='r')
-    axs[2, 1].plot(time_history, vertical_speed_history, label='Vertical Speed', color='g')
-    axs[2, 1].set_title('Speeds')
-    axs[2, 1].set_ylabel('Speed (m/s)')
-    axs[2, 1].set_xlabel('Time (s)')
-    axs[2, 1].legend()
-    
-    axs[0, 1].set_xlabel('Time (s)')
-    axs[1, 1].set_xlabel('Time (s)')
+    Parameters:
+        log_dict (dict):
+            Keys are subplot titles (str).
+            Values are dict with:
+                - 'data': numpy array (1D or 2D) or dict of 1D arrays
+                - 'ylabel': str for the Y-axis label
+                - Optional styling for 1D/2D arrays:
+                    - 'color', 'linestyle', 'label'
+                    - OR 'colors', 'linestyles', 'labels'
+                - Optional styling for dict-of-series:
+                    - 'styles': { series_label: {'color','linestyle','label'} }
+                - 'showlegend': bool (default True)
+                - 'showgrid':  bool (default False)
+        time (array-like): 1D array of time stamps (s).
+        waypoints (list of dict, optional):
+            If provided, and subplot title contains 'Position',
+            draws horizontal lines at each wp['x'], wp['y'], wp['z'].
+        ncols (int): number of columns for subplot grid (default 2).
+    """
+    # Calculate rows needed based on number of plots
+    n_plots = len(log_dict)
+    nrows = (n_plots + ncols - 1) // ncols
 
-    # SPL and SWL
-    axs[3, 0].plot(time_history, spl_history, label='SPL', color='orange')
-    axs[3, 0].set_title('Sound Pressure Level (SPL)')
-    axs[3, 0].set_ylabel('Level (dB)')
-    axs[3, 0].set_xlabel('Time (s)')
-    axs[3, 0].legend()
-    axs[3, 0].grid(True)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(14, 4*nrows))
+    axes = axes.flatten()
 
-    axs[3, 1].plot(time_history, swl_history, label='SWL', color='purple')
-    axs[3, 1].set_title('Sound Power Level (SWL)')
-    axs[3, 1].set_ylabel('Level (dB)')
-    axs[3, 1].set_xlabel('Time (s)')
-    axs[3, 1].legend()
-    axs[3, 1].grid(True)
+    for ax, (title, spec) in zip(axes, log_dict.items()):
+        data = spec['data']
+        ylabel = spec.get('ylabel', '')
+        showleg = spec.get('showlegend', True)
+        showgrid = spec.get('showgrid', False)
 
-    # Thrust
-    axs[4, 0].plot(time_history, thrust_history, label='Thrust', color='cyan')
-    axs[4, 0].set_title('Thrust Over Time')
-    axs[4, 0].set_ylabel('Thrust (N)')
-    axs[4, 0].set_xlabel('Time (s)')
-    axs[4, 0].legend()
-    axs[4, 0].grid(True)
-    
-    fig.suptitle('Drone Simulation Data vs Time', fontsize=16)
-    fig.tight_layout(rect=[0, 0, 1, 0.95])
+        def _plot_series(x, y, lbl=None, color=None, ls=None):
+            ax.plot(x, y, label=lbl, color=color, linestyle=ls)
+
+        # Plot each series
+        if isinstance(data, dict):
+            styles = spec.get('styles', {})
+            for lbl, series in data.items():
+                s = styles.get(lbl, {})
+                _plot_series(time, series,
+                             s.get('label', lbl),
+                             s.get('color'),
+                             s.get('linestyle'))
+        else:
+            arr = np.array(data)
+            if arr.ndim == 1:
+                _plot_series(time, arr,
+                             spec.get('label', title),
+                             spec.get('color'),
+                             spec.get('linestyle'))
+            elif arr.ndim == 2:
+                n = arr.shape[1]
+                colors = spec.get('colors', [None]*n)
+                linestyles = spec.get('linestyles', [None]*n)
+                labels = spec.get('labels', [f"{title} {i+1}" for i in range(n)])
+                for i in range(n):
+                    _plot_series(time, arr[:, i],
+                                 labels[i],
+                                 colors[i],
+                                 linestyles[i])
+
+        # Plot waypoints for Position plots
+        if waypoints and 'Position' in title:
+            axis_key = title[0].lower()
+            for i, wp in enumerate(waypoints):
+                ax.axhline(y=wp[axis_key],
+                           linestyle='--',
+                           color='r',
+                           label=(f"Waypoint {axis_key.upper()}" if i == 0 else None))
+
+        ax.set_title(title)
+        ax.set_ylabel(ylabel)
+        ax.set_xlabel("Time (s)")
+        if showgrid:
+            ax.grid(True)
+        if showleg:
+            ax.legend()
+
+    # Remove unused axes
+    for j in range(n_plots, len(axes)):
+        fig.delaxes(axes[j])
+
+    fig.tight_layout()
     plt.show()
+
+
 
 def saveLogData(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, spl_history, swl_history, waypoints, filename):
     """

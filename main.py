@@ -145,16 +145,102 @@ def main():
                     dt, 
                     frame_skip)
     
-    plotLogData(np.array(sim.positions), 
-                np.array(sim.angles_history), 
-                np.array(sim.rpms_history), 
-                np.array(sim.time_history), 
-                np.array(sim.horiz_speed_history), 
-                np.array(sim.vertical_speed_history), 
-                np.array(sim.spl_history), 
-                np.array(sim.swl_history),
-                np.array(sim.thrust_history), 
-                waypoints)
+    log_dict = {
+        'X Position': {
+            'data': np.array(sim.positions)[:, 0],
+            'ylabel': 'X (m)',
+            'color': 'tab:blue',
+            'linestyle': '-',
+            'label': 'X Position',
+            'showgrid': True
+        },
+        'Y Position': {
+            'data': np.array(sim.positions)[:, 1],
+            'ylabel': 'Y (m)',
+            'color': 'tab:orange',
+            'linestyle': '-',
+            'label': 'Y Position',
+            'showgrid': True
+        },
+        'Z Position': {
+            'data': np.array(sim.positions)[:, 2],
+            'ylabel': 'Z (m)',
+            'color': 'tab:green',
+            'linestyle': '-',
+            'label': 'Z Position',
+            'showgrid': True
+        },
+        'Attitude (Pitch, Roll, Yaw)': {
+            'data': {
+                'Pitch': np.array(sim.angles_history)[:, 0],
+                'Roll':  np.array(sim.angles_history)[:, 1],
+                'Yaw':   np.array(sim.angles_history)[:, 2]
+            },
+            'ylabel': 'Angle (rad)',
+            'styles': {
+                'Pitch': {'color': 'tab:blue',   'linestyle': '-',  'label': 'Pitch'},
+                'Roll':  {'color': 'tab:orange', 'linestyle': '--', 'label': 'Roll'},
+                'Yaw':   {'color': 'tab:green',  'linestyle': '-.', 'label': 'Yaw'}
+            }
+        },
+        'Motor RPMs': {
+            'data': np.array(sim.rpms_history),
+            'ylabel': 'RPM',
+            'colors': ['tab:blue', 'tab:orange', 'tab:green', 'tab:red'],
+            'linestyles': ['-', '--', '-.', ':'],
+            'labels': ['RPM1', 'RPM2', 'RPM3', 'RPM4']
+        },
+        'Speeds': {
+            'data': {
+                'Horizontal Speed': np.array(sim.horiz_speed_history),
+                'Vertical Speed':   np.array(sim.vertical_speed_history)
+            },
+            'ylabel': 'Speed (m/s)',
+            'styles': {
+                'Horizontal Speed': {'color': 'r', 'linestyle': '-', 'label': 'Horizontal Speed'},
+                'Vertical Speed':   {'color': 'g', 'linestyle': '-', 'label': 'Vertical Speed'}
+            }
+        },
+        'Sound Pressure Level (SPL)': {
+            'data': np.array(sim.spl_history),
+            'ylabel': 'Level (dB)',
+            'color': 'orange',
+            'linestyle': '-',
+            'label': 'SPL',
+            'showgrid': True
+        },
+        'Sound Power Level (SWL)': {
+            'data': np.array(sim.swl_history),
+            'ylabel': 'Level (dB)',
+            'color': 'purple',
+            'linestyle': '-',
+            'label': 'SWL',
+            'showgrid': True
+        },
+        'Thrust Over Time': {
+            'data': np.array(sim.thrust_history),
+            'ylabel': 'Thrust (N)',
+            'color': 'cyan',
+            'linestyle': '-',
+            'label': 'Thrust'
+        },
+        'Vertical Wind Speed': {
+            'data': np.array(sim.wind_signals)[2][::sim.frame_skip][:len(sim.time_history)],
+            'color': 'gray',
+            'linestyle': '--',
+            'label': 'Vertical Wind Speed',
+            'ylabel': 'Wind Speed (m/s)',
+            'showgrid': True
+        }
+    }
+
+    # Finally call the dynamic plotter
+    plotLogData(
+        log_dict,
+        time=np.array(sim.time_history),
+        waypoints=waypoints,
+        ncols= 2,
+    )
 
 if __name__ == "__main__":
     main()
