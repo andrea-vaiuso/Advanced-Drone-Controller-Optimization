@@ -1,3 +1,10 @@
+# Author: Andrea Vaiuso
+# Version: 2.0
+# Date: 15.07.2025
+# Description: This module defines the Simulation class for simulating a drone's flight path with dynamic targets,
+# wind effects, and noise emissions. It includes methods for setting wind conditions, computing dynamic targets,
+# and running the simulation with data collection.
+
 import numpy as np
 from Drone import QuadcopterModel
 from World import World
@@ -35,11 +42,12 @@ class Simulation:
         along a path defined by waypoints. The target is computed dynamically based on the drone's position
         and the desired speed for each segment. The drone's state is updated using a Runge-Kutta integration method.
         The simulation stops when the drone reaches the final target within a specified threshold distance
-        or when the maximum simulation time is reached.
+        or when the maximum simulation time is reached. Wind conditions can be simulated using a Dryden wind model by using the `setWind` method.
         """
         self.drone = drone
         self.world = world
         self.waypoints = waypoints
+        self.max_target_length = [0.0] * len(self.waypoints)
         self.dt = dt
         self.max_simulation_time = max_simulation_time
         self.frame_skip = frame_skip
@@ -63,6 +71,7 @@ class Simulation:
         self.spl_history = []
         self.swl_history = []
         self.thrust_history = []
+        self.delta_b_history = []
 
         # Simulation runtime
         self.simulation_time = 0.0
@@ -121,15 +130,16 @@ class Simulation:
         """
         seg_vector = seg_end - seg_start
         seg_length = np.linalg.norm(seg_vector)
+
         if seg_length == 0:
             return seg_end, 1.0
         seg_dir = seg_vector / seg_length
 
-        proj_length = np.dot(drone_pos - seg_start, seg_dir)
-        L = k * v_des
-        target_length = min(proj_length + L, seg_length)
-        target = seg_start + target_length * seg_dir
-        progress = target_length / seg_length
+        proj_length = np.dot(drone_pos - seg_start, seg_dir) # Projected length of drone position onto segment
+        L = k * v_des # Look-ahead distance based on desired speed
+        target_length = min(proj_length + L, seg_length) # Ensure target does not exceed segment length
+        target = seg_start + target_length * seg_dir # Compute target position along the segment
+        progress = target_length / seg_length 
         return target, progress
 
     def startSimulation(self, stop_at_target: bool = True, verbose: bool = True):
@@ -153,9 +163,13 @@ class Simulation:
         self.spl_history.clear()
         self.swl_history.clear()
         self.thrust_history.clear()
+        self.delta_b_history.clear()
 
         # Reset drone state to initial conditions
         self.drone.reset_state() 
+
+        # Initialize histories for dynamic targeting
+        self.max_target_length = [0.0] * len(self.waypoints)
 
         # Start timer
         t_0 = time.time()
@@ -209,6 +223,7 @@ class Simulation:
                 self.vertical_speed_history.append(self.drone.state['vel'][2])
                 self.targets.append(target_dynamic.copy())
                 self.thrust_history.append(self.drone.state['thrust'].copy())
+                self.delta_b_history.append(self.drone.delta_b.copy())
 
                 if self.noise_model:
                     # Compute noise emissions around the drone

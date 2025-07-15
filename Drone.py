@@ -1,3 +1,9 @@
+# Author: Andrea Vaiuso
+# Version: 2.0
+# Date: 15.07.2025
+# Description: This module defines the QuadcopterModel class, which simulates the dynamics of a quadcopter drone.
+# It includes methods for translational and rotational dynamics, state updates, and wind effects.
+
 import numpy as np
 from Controller import QuadCopterController
 from utils import wrap_angle
@@ -42,7 +48,7 @@ class QuadcopterModel:
         self.delta_b = 0.0
         self.thrust = 0.0 
         
-        self.max_rpm_sq = (self.max_rpm * 2 * np.pi / 60)**2
+        self.max_rpm_sq = (self.max_rpm * 2 * np.pi / 60)**2 # Maximum RPM squared for clipping
         self.hover_rpm = self._compute_hover_rpm()
 
     def _compute_hover_rpm(self) -> None:
@@ -202,7 +208,15 @@ class QuadcopterModel:
 
     def _rk4_step(self, state: dict, dt: float) -> dict:
         """
-        Perform one Runge-Kutta 4th order integration step.
+        Performs a single integration step using the classical 4th-order Runge-Kutta (RK4) method.
+        The RK4 method is a numerical technique for solving ordinary differential equations (ODEs).
+        It estimates the state of the system at the next time step by computing four increments (k1, k2, k3, k4),
+        each representing the derivative of the state at different points within the interval. These increments
+        are combined to produce a weighted average, providing a more accurate estimate than simpler methods
+        like Euler integration.
+        The state is represented as a dictionary containing position ('pos'), velocity ('vel'), angles ('angles'),
+        angular velocity ('ang_vel'), and motor RPM ('rpm'). The function advances the state by time step `dt`
+        using the system's translational and rotational dynamics.
 
         Parameters:
             state (dict): Current state.
@@ -254,7 +268,7 @@ class QuadcopterModel:
         else: self.delta_b = 0.0
 
 
-    def update_state(self, state: dict, target: dict, dt: float, ground_control: bool = True, hit_accel_threshold: float = 20.0) -> None:
+    def update_state(self, state: dict, target: dict, dt: float, ground_control: bool = True, hit_accel_threshold: float = 1.0) -> None:
         """
         Update the drone's state by computing control commands, mixing motor RPMs,
         and integrating the dynamics.
@@ -264,20 +278,25 @@ class QuadcopterModel:
             target (dict): Target position with keys 'x', 'y', and 'z'.
             dt (float): Time step.
             ground_control (bool): Whether to apply ground control logic. Default is True.
-            hit_accel_threshold (float): Threshold for detecting a hard landing. Default is 20.0 m/s² following MIL-STD-1290A.
+            hit_accel_threshold (float): Threshold for detecting a hard landing. Default is 1.0 m/s² following MIL-STD-1290A.
         """
+         # Control inputs from the controller
+        u1, u2, u3, u4 = self.controller.update(state, target, dt)
 
-        u1, u2, u3, u4 = self.controller.update(state, target, dt) # Control inputs from the controller
-
-        rpm1, rpm2, rpm3, rpm4 = self._mixer(u1, u2, u3, u4) # Compute RPMs for each motor
+        # Compute RPMs for each motor using the mixer function
+        rpm1, rpm2, rpm3, rpm4 = self._mixer(u1, u2, u3, u4) 
         
-        state["rpm"] = np.array([rpm1, rpm2, rpm3, rpm4]) # Update the state with the new RPMs
+        # Update the state with the new RPMs
+        state["rpm"] = np.array([rpm1, rpm2, rpm3, rpm4]) 
 
-        state = self._rk4_step(state, dt) # Perform a Runge-Kutta 4th order integration step to update the state
+        # Perform a Runge-Kutta 4th order integration step to update the state
+        state = self._rk4_step(state, dt) 
 
-        state['angles'] = np.array([wrap_angle(a) for a in state['angles']]) # Ensure the state is within valid ranges
+        # Ensure the state is within valid ranges
+        state['angles'] = np.array([wrap_angle(a) for a in state['angles']]) 
 
-        state['thrust'] = self.thrust  # Update the thrust in the state
+        # Update the thrust in the state
+        state['thrust'] = self.thrust  
 
         # Ground control logic
         if state['pos'][2] <= 0 and ground_control:

@@ -1,3 +1,9 @@
+# Author: Andrea Vaiuso
+# Version: 2.0
+# Date: 15.07.2025
+# Description: This module defines the PIDController and QuadCopterController classes for controlling a quadcopter drone.
+# It implements PID control for position, altitude, attitude, and yaw, and computes control commands based on the drone's state.
+
 import numpy as np
 
 class PIDController:

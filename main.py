@@ -10,7 +10,6 @@ from Noise.EmpaModel import NoiseModel as EmpaModel
 def main():
     """
     Run the drone simulation and plot the results.
-    The simulation stops early if the drone reaches the final target (within a 2-meter threshold).
     """
     # Simulation parameters
     dt = 0.007
@@ -67,7 +66,7 @@ def main():
         'm': 5.2,
         'g': 9.81,
         'I': np.array([3.8e-3, 3.8e-3, 7.1e-3]),
-        'b': 3.13e-5,
+        'b': 9.13e-5, # 3-13e-5
         'd': 7.5e-7,
         'l': 0.32,
         'Cd': np.array([0.1, 0.1, 0.15]),
@@ -83,7 +82,7 @@ def main():
         kp_att, ki_att, kd_att,
         kp_yaw, ki_yaw, kd_yaw,   
         m=params['m'], g=params['g'], b=params['b'],
-        u1_limit=100.0, u2_limit=10.0, u3_limit=5.0, u4_limit=10.0
+        u1_limit=10000.0, u2_limit=10.0, u3_limit=5.0, u4_limit=10.0
     )
 
     drone = QuadcopterModel(
@@ -97,7 +96,7 @@ def main():
         Jr=params['Jr'],
         init_state=state,
         controller=quad_controller,
-        max_rpm=10000.0,
+        max_rpm=15000.0,
     )
 
     # Initialize the world
@@ -129,7 +128,7 @@ def main():
                     dynamic_target_shift_threshold_prc=dynamic_target_shift_threshold_prc,
                     noise_model=noise_model)
     
-    sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=400, plot_wind_signal=False)
+    sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False)
     sim.startSimulation(stop_at_target=False)
 
     # Plot 3D animation of the drone's trajectory
@@ -222,24 +221,23 @@ def main():
             'ylabel': 'Thrust (N)',
             'color': 'cyan',
             'linestyle': '-',
-            'label': 'Thrust'
+            'label': 'Thrust',
+            'showgrid': True
         },
-        'Vertical Wind Speed': {
+        'Vertical Wind Signal (Dryden)': {
             'data': np.array(sim.wind_signals)[2][::sim.frame_skip][:len(sim.time_history)],
             'color': 'gray',
             'linestyle': '--',
-            'label': 'Vertical Wind Speed',
-            'ylabel': 'Wind Speed (m/s)',
+            'label': 'Vertical Wind Signal',
+            'ylabel': 'dryden(t)',
             'showgrid': True
         }
     }
-
-    # Finally call the dynamic plotter
     plotLogData(
         log_dict,
-        time=np.array(sim.time_history),
-        waypoints=waypoints,
-        ncols= 2,
+        time = np.array(sim.time_history),
+        waypoints = waypoints,
+        ncols = 2,
     )
 
 if __name__ == "__main__":

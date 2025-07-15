@@ -1,3 +1,8 @@
+# Author: Andrea Vaiuso
+# Version: 2.0
+# Date: 15.07.2025
+# Description: This module defines the World class, which represents a simulated environment for a drone.
+
 import json
 import pickle
 import numpy as np

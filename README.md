@@ -15,7 +15,7 @@ This project explores the effects of trajectory noise on drone controller perfor
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/yourusername/MDO_Drone_Controller_Trajectory_Noise.git
+    git clone https://github.com/andrea-vaiuso/MDO_Drone_Controller_Trajectory_Noise.git
     cd MDO_Drone_Controller_Trajectory_Noise
     ```
 2. Install dependencies:
