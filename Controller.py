@@ -46,7 +46,6 @@ class QuadCopterController:
                  kp_alt: float, ki_alt: float, kd_alt: float,
                  kp_att: float, ki_att: float, kd_att: float,
                  kp_yaw: float, ki_yaw: float, kd_yaw: float,
-                 m: float, g: float, 
                  u1_limit: float = 100.0, u2_limit: float = 10.0, 
                  u3_limit: float = 10.0, u4_limit: float = 10.0,
                  max_angle_deg: float = 30):
@@ -59,9 +58,6 @@ class QuadCopterController:
             kp_alt, ki_alt, kd_alt (float): PID gains for altitude.
             kp_att, ki_att, kd_att (float): PID gains for attitude (roll & pitch).
             kp_yaw, ki_yaw, kd_yaw (float): PID gains for yaw.
-            m (float): Mass of the drone.
-            g (float): Gravitational acceleration.
-            b (float): Thrust coefficient.
             u1_limit, u2_limit, u3_limit, u4_limit (float): Saturation limits for the control commands.
             max_angle_deg (float): Maximum tilt angle in degrees.
         """
@@ -81,11 +77,9 @@ class QuadCopterController:
         self.pid_yaw   = PIDController(kp_yaw, ki_yaw, kd_yaw)
         
         self.state = state
-        self.m = m
-        self.g = g
         self.max_angle = np.radians(max_angle_deg)
 
-    def update(self, state: dict, target: dict, dt: float) -> tuple:
+    def update(self, state: dict, target: dict, dt: float, m:float, g:float = 9.81) -> tuple:
         """
         Compute the control commands for the quadcopter.
 
@@ -103,7 +97,7 @@ class QuadCopterController:
 
         # Outer loop: position control with feed-forward for hover
         compensation = np.clip(1.0 / (np.cos(pitch) * np.cos(roll)), 1.0, 1.5) # Compensation factor for hover thrust
-        hover_thrust = self.m * self.g * compensation # Hover thrust based on mass and gravity
+        hover_thrust = m * g * compensation # Hover thrust based on mass and gravity
         pid_z_output = self.pid_z.update(z, z_t, dt) # Altitude control output
         thrust_command = hover_thrust + pid_z_output # Total thrust command including altitude control
 

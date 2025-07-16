@@ -64,12 +64,11 @@ def main():
     # Drone physical parameters
     params = {
         'm': 5.2,
-        'g': 9.81,
         'I': np.array([3.8e-3, 3.8e-3, 7.1e-3]),
         'b': 9.13e-5, # 3-13e-5
         'd': 7.5e-7,
         'l': 0.32,
-        'Cd': np.array([0.1, 0.1, 0.15]),
+        'Cd': 0.47,
         'Ca': np.array([0.1, 0.1, 0.15]),
         'Jr': 6e-5
     }
@@ -81,7 +80,6 @@ def main():
         kp_alt, ki_alt, kd_alt,     
         kp_att, ki_att, kd_att,
         kp_yaw, ki_yaw, kd_yaw,   
-        m=params['m'], g=params['g'],
         u1_limit=10000.0, u2_limit=10.0, u3_limit=5.0, u4_limit=10.0
     )
 
@@ -96,7 +94,8 @@ def main():
         Jr=params['Jr'],
         init_state=state,
         controller=quad_controller,
-        max_rpm=15000.0,
+        max_rpm=5000.0,  # Maximum RPM for the motors
+        R=0.1  # Rotor radius in meters
     )
 
     # Initialize the world

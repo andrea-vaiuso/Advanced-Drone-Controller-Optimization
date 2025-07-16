@@ -1,6 +1,6 @@
 # Author: Andrea Vaiuso
 # Version: 2.0
-# Date: 15.07.2025
+# Date: 16.07.2025
 # Description: This module defines the QuadcopterModel class, which simulates the dynamics of a quadcopter drone.
 # It includes methods for translational and rotational dynamics, state updates, and wind effects.
 
@@ -9,10 +9,10 @@ from Controller import QuadCopterController
 from utils import wrap_angle
 
 class QuadcopterModel:
-    def __init__(self, m: float, I: np.ndarray, b: float, d: float, l: float, 
-                 Cd: np.ndarray, Ca: np.ndarray, Jr: float,
-                 init_state: dict, controller: QuadCopterController,
-                 g: float = 9.81, max_rpm: float = 5000.0, R: float = 0.1):
+    def __init__(self, m: float, I: np.ndarray, b: float, d: float, l: float, Cd: float, 
+                Ca: np.ndarray, Jr: float,
+                init_state: dict, controller: QuadCopterController,
+                max_rpm: float = 5000.0, R: float = 0.1):
         """
         Initialize the physical model of the quadcopter.
 
@@ -21,16 +21,20 @@ class QuadcopterModel:
             I (np.ndarray): Moment of inertia vector.
             b (float): Thrust coefficient.
             d (float): Drag coefficient.
-            l (float): Arm length.
-            Cd (np.ndarray): Translational drag coefficients.
-            Ca (np.ndarray): Rotational damping coefficients.
+            l (float): Distance from the center to the rotor.
+            Cd (float): Drag coefficient for the rotor.
+            Ca (np.ndarray): Aerodynamic drag coefficients.
             Jr (float): Rotor inertia.
-            init_state (dict): Initial state.
-            controller (QuadCopterController): Controller instance.
-            g (float): Gravitational acceleration.
-            max_rpm (float): Maximum RPM.
-            R (float): Rotor radius in meters.
+            init_state (dict): Initial state of the quadcopter.
+            controller (QuadCopterController): Controller for the quadcopter.
+            max_rpm (float): Maximum RPM for the motors. Default is 5000 RPM.
+            R (float): Rotor radius in meters. Default is 0.1 m.
         """
+
+        self.rho = 1.225  # Air density in kg/m³
+        self.A = R**2 * np.pi  # Rotor disk area in m²
+        self.g = 9.81
+
         self.m = m
         self.I = I
         self.b = b
@@ -39,7 +43,6 @@ class QuadcopterModel:
         self.Cd = Cd
         self.Ca = Ca
         self.Jr = Jr
-        self.g = g
         self.R = R
         self.state = init_state
         self.init_state = init_state.copy()  # Store the initial state for reset
@@ -89,13 +92,10 @@ class QuadcopterModel:
         self.thrust_no_wind = self.b * np.sum(np.square(omega))  # Thrust without wind effect
         
         v = np.linalg.norm(state['vel'])
-        rho = 1.225  # Air density in kg/m³
-        A = 0.1      # Reference area in m²
-        C_d = 0.47   # Drag coefficient
 
         # Compute drag force if the velocity is non-zero
         if v > 0:
-            drag_magnitude = 0.5 * rho * A * C_d * v**2
+            drag_magnitude = 0.5 * self.rho * self.A * self.Cd * v**2
             drag_vector = drag_magnitude * (state['vel'] / v)
         else:
             drag_vector = np.array([0.0, 0.0, 0.0])
@@ -284,7 +284,7 @@ class QuadcopterModel:
             hit_accel_threshold (float): Threshold for detecting a hard landing. Default is 1.0 m/s² following MIL-STD-1290A.
         """
          # Control inputs from the controller
-        u1, u2, u3, u4 = self.controller.update(state, target, dt)
+        u1, u2, u3, u4 = self.controller.update(state, target, dt, self.m)
 
         # Compute RPMs for each motor using the mixer function
         rpm1, rpm2, rpm3, rpm4 = self._mixer(u1, u2, u3, u4) 
