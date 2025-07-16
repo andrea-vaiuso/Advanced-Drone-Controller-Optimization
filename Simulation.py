@@ -8,7 +8,6 @@
 import numpy as np
 from Drone import QuadcopterModel
 from World import World
-from functools import reduce
 from Wind import dryden_response
 from matplotlib import pyplot as plt
 from Noise.DNNModel import RotorSoundModel
@@ -72,13 +71,14 @@ class Simulation:
         self.swl_history = []
         self.thrust_history = []
         self.delta_b_history = []
+        self.thrust_no_wind_history = []
 
         # Simulation runtime
         self.simulation_time = 0.0
 
     def setWind(self, max_simulation_time: float, dt: float, height: float = 100,
                 airspeed: float = 10, turbulence_level: int = 30,
-                axis=['u', 'v', 'w'], plot_wind_signal: bool = False):
+                axis=['u', 'v', 'w'], plot_wind_signal: bool = False, seed=None):
         """
         Set the wind conditions for the simulation using a Dryden wind model.
         Parameters:
@@ -97,7 +97,7 @@ class Simulation:
         for ax in axis:
             self.wind_signals.append(
                 dryden_response(axis=ax, height=height, airspeed=airspeed,
-                                turbulence_level=turbulence_level, time_steps=num_steps)
+                                turbulence_level=turbulence_level, time_steps=num_steps, seed=seed)
             )
 
         # Plot wind signals if requested
@@ -107,7 +107,7 @@ class Simulation:
                 axs[i].plot(np.arange(num_steps) * dt, self.wind_signals[i])
                 axs[i].set_title(f"Wind Signal for Axis {ax}")
                 axs[i].set_xlabel("Time (s)")
-                axs[i].set_ylabel("Wind Speed")
+                axs[i].set_ylabel("Wind Speed (m/s)")
             plt.tight_layout()
             plt.show()
 
@@ -164,6 +164,7 @@ class Simulation:
         self.swl_history.clear()
         self.thrust_history.clear()
         self.delta_b_history.clear()
+        self.thrust_no_wind_history.clear()
 
         # Reset drone state to initial conditions
         self.drone.reset_state() 
@@ -209,7 +210,7 @@ class Simulation:
                                      self.dt)
             # Apply wind if enabled
             if self.simulate_wind and len(self.wind_signals) >= 3:
-                self.drone.update_wind(self.wind_signals[2][step], simulate_wind=True)
+                self.drone.update_wind(self.wind_signals[2][step], simulate_wind=True) #Only use 'w' axis wind for vertical component
 
             current_time = step * self.dt
 
@@ -222,14 +223,18 @@ class Simulation:
                 self.horiz_speed_history.append(np.linalg.norm(self.drone.state['vel'][:2]))
                 self.vertical_speed_history.append(self.drone.state['vel'][2])
                 self.targets.append(target_dynamic.copy())
-                self.thrust_history.append(self.drone.state['thrust'].copy())
-                self.delta_b_history.append(self.drone.delta_b.copy())
+                self.thrust_history.append(self.drone.thrust)
+                self.delta_b_history.append(self.drone.delta_b)
+                self.thrust_no_wind_history.append(self.drone.thrust_no_wind)
 
                 if self.noise_model:
                     # Compute noise emissions around the drone
                     avg_spl = 0.0
                     avg_swl = 0.0
                     x_d, y_d, z_d = self.drone.state['pos']
+                    # If position is not valid, set position to zero
+                    if np.isnan(x_d) or np.isnan(y_d) or np.isnan(z_d):
+                        x_d, y_d, z_d = 0.0, 0.0, MIN_HEIGHT_FROM_GROUND
                     areas, params = self.world.get_areas_in_circle(
                         x=int(x_d), y=int(y_d), height=MIN_HEIGHT_FROM_GROUND,
                         radius=self.noise_annoyance_radius, include_areas_out_of_bounds=True)

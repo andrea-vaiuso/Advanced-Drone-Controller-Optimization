@@ -46,7 +46,7 @@ class QuadCopterController:
                  kp_alt: float, ki_alt: float, kd_alt: float,
                  kp_att: float, ki_att: float, kd_att: float,
                  kp_yaw: float, ki_yaw: float, kd_yaw: float,
-                 m: float, g: float, b: float,
+                 m: float, g: float, 
                  u1_limit: float = 100.0, u2_limit: float = 10.0, 
                  u3_limit: float = 10.0, u4_limit: float = 10.0,
                  max_angle_deg: float = 30):
@@ -83,7 +83,6 @@ class QuadCopterController:
         self.state = state
         self.m = m
         self.g = g
-        self.b = b
         self.max_angle = np.radians(max_angle_deg)
 
     def update(self, state: dict, target: dict, dt: float) -> tuple:

@@ -13,7 +13,7 @@ def main():
     """
     # Simulation parameters
     dt = 0.007
-    simulation_time = 50.0
+    simulation_time = 50.0 # seconds
     frame_skip = 8 # Number of frames to skip for smoother animation
     threshold = 2.0  # Stop simulation if within 2 meters of final target
     dynamic_target_shift_threshold_prc = 0.7 # Shift to next segment if a certain percentage of current segment is covered
@@ -34,7 +34,7 @@ def main():
     waypoints = [
         {'x': 0.0, 'y': 0.0, 'z': 90.0, 'v': 5},
         # {'x': 10.0, 'y': 10.0, 'z': 10.0, 'v': 5},
-        # {'x': 20.0, 'y': 20.0, 'z': 10.0, 'v': 5},
+        {'x': 20.0, 'y': 20.0, 'z': 10.0, 'v': 5},
         # {'x': 30.0, 'y': 30.0, 'z': 10.0, 'v': 5},
         {'x': 40.0, 'y': 40.0, 'z': 90.0, 'v': 5},
         # {'x': 50.0, 'y': 50.0, 'z': 10.0, 'v': 5},
@@ -48,7 +48,7 @@ def main():
     state = {
         'pos': np.array([0.0, 0.0, 0.0]),
         'vel': np.array([0.0, 0.0, 0.0]),
-        'angles': np.array([0.0, 0.0, 0.0]),
+        'angles': np.array([0.0, 0.0, 0.0]), # roll, pitch, yaw # check if is consistent with the coordinate system
         'ang_vel': np.array([0.0, 0.0, 0.0]),
         'rpm': np.array([0.0, 0.0, 0.0, 0.0]),
         'thrust': 0.0,  # Initial thrust
@@ -81,7 +81,7 @@ def main():
         kp_alt, ki_alt, kd_alt,     
         kp_att, ki_att, kd_att,
         kp_yaw, ki_yaw, kd_yaw,   
-        m=params['m'], g=params['g'], b=params['b'],
+        m=params['m'], g=params['g'],
         u1_limit=10000.0, u2_limit=10.0, u3_limit=5.0, u4_limit=10.0
     )
 
@@ -128,7 +128,7 @@ def main():
                     dynamic_target_shift_threshold_prc=dynamic_target_shift_threshold_prc,
                     noise_model=noise_model)
     
-    sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False)
+    sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed = None)
     sim.startSimulation(stop_at_target=False)
 
     # Plot 3D animation of the drone's trajectory
@@ -217,11 +217,15 @@ def main():
             'showgrid': True
         },
         'Thrust Over Time': {
-            'data': np.array(sim.thrust_history),
+            'data': {
+                'Thrust with Wind': np.array(sim.thrust_history),
+                'Thrust without Wind': np.array(sim.thrust_no_wind_history)
+            },
             'ylabel': 'Thrust (N)',
-            'color': 'cyan',
-            'linestyle': '-',
-            'label': 'Thrust',
+            'styles': {
+                'Thrust with Wind': {'color': 'blue', 'linestyle': '-', 'label': 'Thrust with Wind'},
+                'Thrust without Wind': {'color': 'orange', 'linestyle': '--', 'label': 'Thrust without Wind'}
+            },
             'showgrid': True
         },
         'Vertical Wind Signal (Dryden)': {
@@ -237,7 +241,7 @@ def main():
         log_dict,
         time = np.array(sim.time_history),
         waypoints = waypoints,
-        ncols = 2,
+        ncols = 3,
     )
 
 if __name__ == "__main__":

@@ -47,6 +47,7 @@ class QuadcopterModel:
         self.max_rpm = max_rpm
         self.delta_b = 0.0
         self.thrust = 0.0 
+        self.thrust_no_wind = 0.0  # Thrust without wind effect
         
         self.max_rpm_sq = (self.max_rpm * 2 * np.pi / 60)**2 # Maximum RPM squared for clipping
         self.hover_rpm = self._compute_hover_rpm()
@@ -83,7 +84,9 @@ class QuadcopterModel:
         roll, pitch, yaw = state['angles']
 
         # Total thrust from all motors plus any additional thrust from wind
-        self.thrust = (self.b + self.delta_b) * np.sum(np.square(omega)) 
+        # In a more complex model, this should be calculated based on the blade element theory or similar
+        self.thrust = (self.b + self.delta_b) * np.sum(np.square(omega))
+        self.thrust_no_wind = self.b * np.sum(np.square(omega))  # Thrust without wind effect
         
         v = np.linalg.norm(state['vel'])
         rho = 1.225  # Air density in kg/m³
@@ -206,7 +209,7 @@ class QuadcopterModel:
 
         return rpm1, rpm2, rpm3, rpm4
 
-    def _rk4_step(self, state: dict, dt: float) -> dict:
+    def _rk4_step(self, state: dict, dt: float) -> dict: #Check physical meaning
         """
         Performs a single integration step using the classical 4th-order Runge-Kutta (RK4) method.
         The RK4 method is a numerical technique for solving ordinary differential equations (ODEs).
@@ -264,7 +267,7 @@ class QuadcopterModel:
         if simulate_wind: 
             theta_0 = 2 * np.pi / 180  # Initial angle in radians
             omega = self._rpm_to_omega(self.hover_rpm)
-            self.delta_b = (3/2) * (self.b / ((theta_0 * omega * self.R) + 1e-4)) * V
+            self.delta_b = (3/2) * (self.b / ((theta_0 * omega * self.R) + 1e-6)) * V #Need to be checked
         else: self.delta_b = 0.0
 
 

@@ -1,8 +1,8 @@
-# MDO_Drone_Controller_Trajectory_Noise
+# Drone-Controller-Trajectory-Noise Optimization
 
 ## Overview
 
-This project explores the effects of trajectory noise on drone controller performance using Model-Driven Optimization (MDO) techniques. It provides tools and scripts for simulating, analyzing, and visualizing how noise impacts trajectory tracking and control stability.
+This project explores the effects of trajectory noise on drone controller performance using Multi-Disciplinary Optimization techniques. It provides tools and scripts for simulating, analyzing, and visualizing how noise impacts trajectory tracking and control stability.
 
 ## Features
 
@@ -29,4 +29,3 @@ Run the main simulation script:
 ```bash
 python main.py 
 ```
-
