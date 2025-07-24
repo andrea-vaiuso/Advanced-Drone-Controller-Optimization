@@ -4,3 +4,6 @@ pandas
 pillow
 torch
 scipy
+scikit-learn
+bayesian-optimization
+pyyaml

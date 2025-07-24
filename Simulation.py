@@ -76,7 +76,8 @@ class Simulation:
         # Simulation runtime
         self.simulation_time = 0.0
         self.navigation_time = None
-        self.drone_didnt_move = False
+        self.has_moved = True
+        self.has_reached_target = False
 
     def setWind(self, max_simulation_time: float, dt: float, height: float = 100,
                 airspeed: float = 10, turbulence_level: int = 30,
@@ -120,6 +121,7 @@ class Simulation:
                                k: float = 1.0) -> tuple:
         """
         Compute the dynamic target point along a segment with a look-ahead distance of L = k*v_des.
+        Ensures that the target position along the segment does not move backward if the drone regresses.
         Parameters:
             drone_pos (np.ndarray): Current drone position [x, y, z].
             seg_start (np.ndarray): Start point of the segment.
@@ -137,11 +139,20 @@ class Simulation:
             return seg_end, 1.0
         seg_dir = seg_vector / seg_length
 
-        proj_length = np.dot(drone_pos - seg_start, seg_dir) # Projected length of drone position onto segment
-        L = k * v_des # Look-ahead distance based on desired speed
-        target_length = min(proj_length + L, seg_length) # Ensure target does not exceed segment length
-        target = seg_start + target_length * seg_dir # Compute target position along the segment
-        
+        proj_length = np.dot(drone_pos - seg_start, seg_dir)  # Projected length of drone position onto segment
+        L = k * v_des  # Look-ahead distance based on desired speed
+
+        # Ensure target does not move backward along the segment
+        idx = self.waypoints.index({'x': seg_end[0], 'y': seg_end[1], 'z': seg_end[2], 'v': v_des}) \
+            if {'x': seg_end[0], 'y': seg_end[1], 'z': seg_end[2], 'v': v_des} in self.waypoints else None
+        if idx is not None:
+            self.max_target_length[idx] = max(self.max_target_length[idx], proj_length + L)
+            target_length = min(self.max_target_length[idx], seg_length)
+        else:
+            target_length = min(proj_length + L, seg_length)
+
+        target = seg_start + target_length * seg_dir  # Compute target position along the segment
+
         # Calculate distance from target
         distance = np.linalg.norm(drone_pos - target)
         return target, distance
@@ -208,6 +219,7 @@ class Simulation:
                         self.drone.state['pos'], seg_start, seg_end, v_des, k=k_lookahead)
                 else:
                     target_dynamic = seg_end
+                    current_seg_idx = len(self.waypoints)  # Final segment reached
 
             # Update drone state
             self.drone.update_state({'x': target_dynamic[0], 'y': target_dynamic[1], 'z': target_dynamic[2]},
@@ -253,15 +265,15 @@ class Simulation:
                     count = len(areas) if areas else 1
                     self.spl_history.append(avg_spl / count)
                     self.swl_history.append(avg_swl / count)
-
             # Check for final target reached only if all the other waypoints have been reached
-            if stop_at_target and current_seg_idx == len(self.waypoints) - 1:
+            if stop_at_target and current_seg_idx == len(self.waypoints):
                 final_target = np.array([
                     self.waypoints[-1]['x'], self.waypoints[-1]['y'], self.waypoints[-1]['z']])
                 if np.linalg.norm(self.drone.state['pos'] - final_target) < self.target_reached_threshold:
                     if verbose:
                         print(f"Final target reached at time: {current_time:.2f} s")
                     self.navigation_time = current_time
+                    self.has_reached_target = True
                     break
 
             # Check if drone is not moving 
@@ -271,7 +283,7 @@ class Simulation:
                     print(f"Drone stopped at time because was not moving: {current_time:.2f} s")
                     print(f"To change this behavior, set stop_sim_if_not_moving to False.")
                 self.navigation_time = current_time
-                self.drone_didnt_move = True
+                self.has_moved = False
                 break
 
         # End timer
