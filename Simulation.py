@@ -21,7 +21,7 @@ class Simulation:
     def __init__(self, drone: QuadcopterModel, world: World, waypoints: list,
                  dt: float = 0.007, max_simulation_time: float = 200.0, frame_skip: int = 8,
                  target_reached_threshold: float = 2.0,
-                 dynamic_target_shift_threshold_prc: float = 0.7,
+                 dynamic_target_shift_threshold_distance: float = 5,
                  noise_model: RotorSoundModel = None, noise_annoyance_radius: int = 100):
         """
         Initialize the simulation with the drone model, world, waypoints, and parameters.
@@ -33,7 +33,7 @@ class Simulation:
             max_simulation_time (float): Maximum simulation time in seconds.
             frame_skip (int): Number of steps to skip for data collection.
             target_reached_threshold (float): Threshold distance to consider the target reached.
-            dynamic_target_shift_threshold_prc (float): Percentage of segment completion to shift target.
+            dynamic_target_shift_threshold_distance (float): Distance to consider for shifting the target.
             noise_model (RotorSoundModel): Optional noise model for simulating drone noise emissions.
             noise_annoyance_radius (int): Radius around the drone to consider for noise emissions.
 
@@ -51,7 +51,7 @@ class Simulation:
         self.max_simulation_time = max_simulation_time
         self.frame_skip = frame_skip
         self.target_reached_threshold = target_reached_threshold
-        self.dynamic_target_shift_threshold_prc = dynamic_target_shift_threshold_prc
+        self.dynamic_target_shift_threshold_distance = dynamic_target_shift_threshold_distance
         self.noise_model = noise_model
         self.noise_annoyance_radius = noise_annoyance_radius
 
@@ -75,6 +75,8 @@ class Simulation:
 
         # Simulation runtime
         self.simulation_time = 0.0
+        self.navigation_time = None
+        self.drone_didnt_move = False
 
     def setWind(self, max_simulation_time: float, dt: float, height: float = 100,
                 airspeed: float = 10, turbulence_level: int = 30,
@@ -125,8 +127,8 @@ class Simulation:
             v_des (float): Desired speed for this segment.
             k (float): Scaling factor for the look-ahead distance.
         Returns:
-            tuple: (target, progress) where target is the dynamic target point [x, y, z],
-                and progress is the fraction of the segment covered.
+            tuple: (target, distance) where target is the dynamic target point [x, y, z],
+                and distance is the distance from the drone to the target.
         """
         seg_vector = seg_end - seg_start
         seg_length = np.linalg.norm(seg_vector)
@@ -139,15 +141,18 @@ class Simulation:
         L = k * v_des # Look-ahead distance based on desired speed
         target_length = min(proj_length + L, seg_length) # Ensure target does not exceed segment length
         target = seg_start + target_length * seg_dir # Compute target position along the segment
-        progress = target_length / seg_length 
-        return target, progress
+        
+        # Calculate distance from target
+        distance = np.linalg.norm(drone_pos - target)
+        return target, distance
 
-    def startSimulation(self, stop_at_target: bool = True, verbose: bool = True):
+    def startSimulation(self, stop_at_target: bool = True, verbose: bool = True, stop_sim_if_not_moving: bool = False):
         """
         Start the simulation of the drone following dynamic targets along the waypoints.
         Parameters:
             stop_at_target (bool): If True, stop when the final target is reached.
             verbose (bool): If True, print simulation progress and completion messages.
+            stop_sim_if_not_moving (bool): If True, stop simulation if the drone is not moving for a certain period.
 
         This method updates the drone's state at each time step and stores data in class attributes.
         """
@@ -186,11 +191,11 @@ class Simulation:
 
         for step in range(num_steps):
             # Compute dynamic target
-            target_dynamic, progress = self._compute_moving_target(
+            target_dynamic, distance = self._compute_moving_target(
                 self.drone.state['pos'], seg_start, seg_end, v_des, k=k_lookahead)
 
             # Shift to next segment if needed
-            if progress >= self.dynamic_target_shift_threshold_prc:
+            if distance <= self.dynamic_target_shift_threshold_distance:
                 current_seg_idx += 1
                 if current_seg_idx < len(self.waypoints):
                     seg_start = seg_end
@@ -205,9 +210,8 @@ class Simulation:
                     target_dynamic = seg_end
 
             # Update drone state
-            self.drone.update_state(self.drone.state,
-                                     {'x': target_dynamic[0], 'y': target_dynamic[1], 'z': target_dynamic[2]},
-                                     self.dt)
+            self.drone.update_state({'x': target_dynamic[0], 'y': target_dynamic[1], 'z': target_dynamic[2]},
+                                     self.dt, verbose=False)
             # Apply wind if enabled
             if self.simulate_wind and len(self.wind_signals) >= 3:
                 self.drone.update_wind(self.wind_signals[2][step], simulate_wind=True) #Only use 'w' axis wind for vertical component
@@ -250,12 +254,24 @@ class Simulation:
                     self.spl_history.append(avg_spl / count)
                     self.swl_history.append(avg_swl / count)
 
-            # Check for final target reached
-            final_target = np.array([
-                self.waypoints[-1]['x'], self.waypoints[-1]['y'], self.waypoints[-1]['z']])
-            if stop_at_target and np.linalg.norm(self.drone.state['pos'] - final_target) < self.target_reached_threshold:
+            # Check for final target reached only if all the other waypoints have been reached
+            if stop_at_target and current_seg_idx == len(self.waypoints) - 1:
+                final_target = np.array([
+                    self.waypoints[-1]['x'], self.waypoints[-1]['y'], self.waypoints[-1]['z']])
+                if np.linalg.norm(self.drone.state['pos'] - final_target) < self.target_reached_threshold:
+                    if verbose:
+                        print(f"Final target reached at time: {current_time:.2f} s")
+                    self.navigation_time = current_time
+                    break
+
+            # Check if drone is not moving 
+            if current_time > 5 and np.linalg.norm(self.horiz_speed_history) < 1e-2 and np.linalg.norm(self.vertical_speed_history) < 1e-2 and stop_sim_if_not_moving:
+                
                 if verbose:
-                    print(f"Final target reached at time: {current_time:.2f} s")
+                    print(f"Drone stopped at time because was not moving: {current_time:.2f} s")
+                    print(f"To change this behavior, set stop_sim_if_not_moving to False.")
+                self.navigation_time = current_time
+                self.drone_didnt_move = True
                 break
 
         # End timer

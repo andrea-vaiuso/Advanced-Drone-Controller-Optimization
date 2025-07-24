@@ -92,7 +92,7 @@ class QuadCopterController:
             tuple: (thrust_command, roll_command, pitch_command, yaw_command)
         """
         x, y, z = state['pos']
-        roll, pitch, yaw = state['angles']
+        roll, pitch, yaw = state['angles'] # In radians
         x_t, y_t, z_t = target['x'], target['y'], target['z']
 
         # Outer loop: position control with feed-forward for hover
@@ -114,10 +114,11 @@ class QuadCopterController:
         pitch_command = self.pid_pitch.update(pitch, pitch_des, dt) # Pitch command based on desired pitch
         yaw_command = self.pid_yaw.update(yaw, 0, dt)  # Yaw command based on desired yaw ## (Alternatively, use yaw_des to rotate towards the target)
 
+        
         # Saturate the commands
         thrust_command = np.clip(thrust_command, 0, self.u1_limit) 
-        roll_command = np.clip(roll_command, -self.u2_limit, self.u2_limit)
+        roll_command = np.clip(roll_command, -self.u2_limit, self.u2_limit) 
         pitch_command = np.clip(pitch_command, -self.u3_limit, self.u3_limit)
         yaw_command = np.clip(yaw_command, -self.u4_limit, self.u4_limit)
-        
+
         return (thrust_command, roll_command, pitch_command, yaw_command)

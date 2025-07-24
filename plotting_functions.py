@@ -214,8 +214,8 @@ def plot3DAnimation(positions, angles_history, rpms_history, time_history, horiz
         current_rpm = rpms_history[frame]
         text_str = (f"Time: {current_time:.2f} s\n"
                     f"RPM: [{current_rpm[0]:.2f}, {current_rpm[1]:.2f}, {current_rpm[2]:.2f}, {current_rpm[3]:.2f}]\n"
-                    f"Vertical Speed: {vertical_speed_history[frame]:.2f} m/s\n"
-                    f"Horizontal Speed: {horiz_speed_history[frame]:.2f} m/s\n"
+                    f"Vertical Speed (km/h): {vertical_speed_history[frame] * 3.6:.2f} km/h\n"
+                    f"Horizontal Speed (km/h): {horiz_speed_history[frame] * 3.6:.2f} km/h\n"
                     f"Pitch: {angles_history[frame][0]:.4f} rad\n"
                     f"Roll: {angles_history[frame][1]:.4f} rad\n"
                     f"Yaw: {angles_history[frame][2]:.4f} rad")
