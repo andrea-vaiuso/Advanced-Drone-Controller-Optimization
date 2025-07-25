@@ -1,3 +1,8 @@
+<div style="display: flex; gap: 10px;">
+  <img src="Pic/anim.gif" alt="Simulation Animation" width="49%">
+  <img src="Pic/logs.png" alt="Simulation Logs" width="49%">
+</div>
+
 # Drone-Controller-Trajectory-Noise Optimization
 
 ## Description
