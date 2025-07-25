@@ -7,3 +7,5 @@ scipy
 scikit-learn
 bayesian-optimization
 pyyaml
+stable-baselines3
+gymnasium
