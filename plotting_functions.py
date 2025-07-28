@@ -83,6 +83,9 @@ def plotLogData(log_dict, time, waypoints=None, ncols=2):
                            linestyle='--',
                            color='r',
                            label=(f"Waypoint {axis_key.upper()}" if i == 0 else None))
+                # Add text label for waypoint
+                ax.text(time[-1], wp[axis_key], f"WP{i+1}",
+                        color='r', fontsize=10, ha='right', va='center')
 
         ax.set_title(title)
         ax.set_ylabel(ylabel)

@@ -8,9 +8,11 @@ from bayes_opt import BayesianOptimization
 from World import World
 import main as mainfunc
 
+from plotting_functions import plot3DAnimation
+
 # Optimization parameters
 iteration = 0
-n_iter = 5000
+n_iter = 1500
 costs = []
 best_target = -float('inf')
 best_params = None
@@ -68,7 +70,19 @@ def simulate_pid(pid_gains):
     sim = mainfunc.create_simulation(drone=drone, world=world, waypoints=waypoints, parameters=parameters, noise_model=None)
 
     # sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed = None)
-    sim.startSimulation(stop_at_target=True, verbose=False, stop_sim_if_not_moving=True)
+    sim.startSimulation(stop_at_target=True, verbose=False, stop_sim_if_not_moving=True, use_static_target=True)
+
+    # FOR DEBUG PURPOSES plot3DAnimation(np.array(sim.positions), 
+                    # np.array(sim.angles_history), 
+                    # np.array(sim.rpms_history), 
+                    # np.array(sim.time_history), 
+                    # np.array(sim.horiz_speed_history), 
+                    # np.array(sim.vertical_speed_history), 
+                    # np.array(sim.targets), 
+                    # waypoints, 
+                    # init_state['pos'], 
+                    # float(parameters['dt']), 
+                    # int(parameters['frame_skip']))
 
     # Collect results
     angles = np.array(sim.angles_history)
@@ -147,47 +161,47 @@ def main():
     """Run the Bayesian PID gain optimization."""
     # Define the bounds for the optimization variables
     pbounds = {
-        'kp_pos': (1e-6, 1e3), 
-        'ki_pos': (1e-6, 1e3), 
-        'kd_pos': (1e-6, 1e3),
+        'kp_pos': (0.5, 1), 
+        'ki_pos': (1e-6, 1), 
+        'kd_pos': (1e-4, 1),
 
-        'kp_alt': (1e-6, 1e3),   
-        'ki_alt': (1e-6, 1e3),  
-        'kd_alt': (1e-6, 1e3),
+        'kp_alt': (0.5, 1),   
+        'ki_alt': (1e-6, 1e-1),  
+        'kd_alt': (1e-6, 2),
 
-        'kp_att': (1e-6, 1e3),     
-        'ki_att': (1e-6, 1e3),  
-        'kd_att': (1e-6, 1e3),
+        'kp_att': (0.5, 70),     
+        'ki_att': (1, 1e4),  
+        'kd_att': (1e-6, 5),
 
-        'kp_hsp': (1e-6, 1e3),
-        'ki_hsp': (1e-6, 1e3),
-        'kd_hsp': (1e-6, 1e3),
+        'kp_hsp': (1e-2, 10),
+        'ki_hsp': (1e-6, 2),
+        'kd_hsp': (1e-6, 0.1),
 
-        'kp_vsp': (1e-6, 1e3),
-        'ki_vsp': (1e-6, 1e3),
-        'kd_vsp': (1e-6, 1e3)
+        'kp_vsp': (1e2, 2e3),
+        'ki_vsp': (1e-6, 30),
+        'kd_vsp': (1e-6, 10)
     }
-    # init_guess = {
-    #     'kp_pos': 0.7605314210227943,
-    #     'ki_pos': 0.37624518297791576,
-    #     'kd_pos': 1.0,
+    init_guess = {
+        'kp_pos': 0.7,
+        'ki_pos': 0.01,
+        'kd_pos': 0.09,
 
-    #     'kp_alt': 196.60373623182426,
-    #     'ki_alt': 29.090249051600722,
-    #     'kd_alt': 107.90640578767405,
+        'kp_alt': 0.7,
+        'ki_alt': 0.0,
+        'kd_alt': 0.1,
 
-    #     'kp_att': 2.3755182014455283,
-    #     'ki_att': 1e-05,
-    #     'kd_att': 2.808073996317681,
+        'kp_att': 20.0,
+        'ki_att': 1.0,
+        'kd_att': 0.01,
 
-    #     'kp_hsp': 124.37310350657175,
-    #     'ki_hsp': 1e-05,
-    #     'kd_hsp': 0.7454357201860323,
+        'kp_hsp': 1.0,
+        'ki_hsp': 0.01,
+        'kd_hsp': 0.01,
 
-    #     'kp_vsp': 114.68965027417173,
-    #     'ki_vsp': 1.0,
-    #     'kd_vsp': 0.6251197244454744
-    # }
+        'kp_vsp': 150.0,
+        'ki_vsp': 10.0,
+        'kd_vsp': 1.0
+    }
 
     start_time = time()
     print("Starting optimization...")
@@ -198,10 +212,10 @@ def main():
         random_state=42,
     )
 
-    # optimizer.probe(
-    #     params=init_guess,
-    #     lazy=True,
-    # )
+    optimizer.probe(
+        params=init_guess,
+        lazy=True,
+    )
 
     optimizer.maximize(
         init_points=50,

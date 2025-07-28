@@ -8,17 +8,22 @@
 import numpy as np
 
 class PIDController:
-    def __init__(self, gains: tuple, windup_limit: float = 100.0):
+    def __init__(self, gains: tuple, windup_limit: float = 100.0, name: str = "generic"):
         """Initialize the PID controller.
 
         Parameters:
+            name (str): Name of the PID controller.
             gains (tuple[float, float, float]): The ``(kp, ki, kd)`` PID gains.
             windup_limit (float): Maximum absolute value for the integral term
                 (anti-windup).
         """
+        self.name = name
         self.kp, self.ki, self.kd = gains
+        self.error = 0.0
+        self.derivative = 0.0
         self.integral = 0.0
         self.prev_error = 0.0
+        self.output = 0.0
         self.integral_limit = abs(windup_limit)
 
     def update(self, current_value: float, target_value: float, dt: float) -> float:
@@ -33,13 +38,17 @@ class PIDController:
         Returns:
             float: Control output.
         """
-        error = target_value - current_value
-        self.integral += error * dt
+        self.error = target_value - current_value
+        self.integral += self.error * dt
         # Anti-windup: clamp the integral term
         self.integral = np.clip(self.integral, -self.integral_limit, self.integral_limit)
-        derivative = (error - self.prev_error) / dt if dt > 0 else 0
-        self.prev_error = error
-        return self.kp * error + self.ki * self.integral + self.kd * derivative
+        self.derivative = (self.error - self.prev_error) / dt if dt > 0 else 0
+        self.prev_error = self.error
+        self.output = self.kp * self.error + self.ki * self.integral + self.kd * self.derivative
+        return self.output
+
+    def __str__(self):
+        return f"PID {self.name}: (err={self.error}, deriv={self.derivative}, integ={self.integral}, output={self.output})"
 
 class QuadCopterController:
     def __init__(self, state: dict,
@@ -75,20 +84,20 @@ class QuadCopterController:
         pos, alt, att, yaw_g, hsp, vsp = self.unpack_pid_gains(pid_gains)
 
         # Position PIDs
-        self.pid_x = PIDController(pos, self.u3_limit * anti_windup_contrib)
-        self.pid_y = PIDController(pos, self.u2_limit * anti_windup_contrib)
-        self.pid_z = PIDController(alt, self.u1_limit * anti_windup_contrib)
+        self.pid_x = PIDController(pos, self.u3_limit * anti_windup_contrib, name="pos_x")
+        self.pid_y = PIDController(pos, self.u2_limit * anti_windup_contrib, name="pos_y")
+        self.pid_z = PIDController(alt, self.u1_limit * anti_windup_contrib, name="pos_z")
 
         # Attitude PIDs (roll and pitch)
-        self.pid_roll  = PIDController(att, self.u2_limit * anti_windup_contrib)
-        self.pid_pitch = PIDController(att, self.u3_limit * anti_windup_contrib)
+        self.pid_roll  = PIDController(att, self.u2_limit * anti_windup_contrib, name="roll")
+        self.pid_pitch = PIDController(att, self.u3_limit * anti_windup_contrib, name="pitch")
 
         # Yaw PID
-        self.pid_yaw   = PIDController(yaw_g, self.u4_limit * anti_windup_contrib)
+        self.pid_yaw   = PIDController(yaw_g, self.u4_limit * anti_windup_contrib, name="yaw")
 
         # Speed PIDs (horizontal and vertical)
-        self.pid_h_speed = PIDController(hsp, self.max_h_speed_limit * anti_windup_contrib)
-        self.pid_v_speed = PIDController(vsp, self.max_v_speed_limit * anti_windup_contrib)
+        self.pid_h_speed = PIDController(hsp, self.max_h_speed_limit * anti_windup_contrib, name="h_speed")
+        self.pid_v_speed = PIDController(vsp, self.max_v_speed_limit * anti_windup_contrib, name="v_speed")
 
         self.state = state
 
@@ -126,10 +135,10 @@ class QuadCopterController:
         # Outer loop: position control with feed-forward for hover
         compensation = np.clip(1.0 / (np.cos(pitch) * np.cos(roll)), 1.0, 1.5) # Compensation factor for hover thrust
         hover_thrust = m * g * compensation # Hover thrust based on mass and gravity
-        # Step 1: posizione z ➝ velocità target
+
         vz_t = self.pid_z.update(z, z_t, dt)
         vz_t = np.clip(vz_t, -desired_v_speed, desired_v_speed)
-        # Step 2: velocità ➝ thrust
+
         vz_output = self.pid_v_speed.update(v_z, vz_t, dt)
         thrust_command = np.clip(hover_thrust + vz_output, 0, self.u1_limit)
 
@@ -161,6 +170,20 @@ class QuadCopterController:
 
         return (thrust_command, roll_command, pitch_command, yaw_command)
     
+    def print_pid_status(self):
+        """
+        Print the status of all PID controllers.
+        """
+        print(f"QuadCopterController Status:")
+        print(f"{self.pid_x}")
+        print(f"{self.pid_y}")
+        print(f"{self.pid_z}")
+        print(f"{self.pid_roll}")
+        print(f"{self.pid_pitch}")
+        print(f"{self.pid_yaw}")
+        print(f"{self.pid_h_speed}")
+        print(f"{self.pid_v_speed}")
+
     @staticmethod
     def unpack_pid_gains(pid_gains: dict) -> tuple:
         """

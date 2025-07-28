@@ -1,9 +1,9 @@
 # Simulation parameters
 dt: 0.007
-simulation_time: 100 # seconds
+simulation_time: 150 # seconds
 frame_skip: 16 # Number of frames to skip for smoother animation
 threshold: 2.0  # Stop simulation if within 2 meters of final target
-target_shift_threshold_distance: 3 # Shift to next segment if within 10 meters of current segment
+target_shift_threshold_distance: 5 # Shift to next segment if within 10 meters of current segment
 
 max_rpm: 3000 # Maximum RPM for the motors
 n_rotors: 4 # Number of rotors
@@ -21,12 +21,12 @@ norm_params_path: "Rotor/normalization_params.pth"
 rotor_model_path: "Rotor/rotor_model.pth"
 
 # PID controller settings (yaw remain fixed)
-k_pid_pos: [0.7605314210227943, 0.37624518297791576, 1.0]
-k_pid_alt: [196.60373623182426, 29.090249051600722, 107.90640578767405]
-k_pid_att: [2.3755182014455283, 1e-05, 2.808073996317681]
+k_pid_pos: [0.7, 0.01, 0.09]
+k_pid_alt: [0.7, 0, 0.1]
+k_pid_att: [20, 1, 0.01]
 k_pid_yaw: [0.5, 1e-06, 0.1]
-k_pid_hsp: [124.37310350657175, 1e-05, 0.7454357201860323]
-k_pid_vsp: [114.68965027417173, 1.0, 0.6251197244454744]
+k_pid_hsp: [1, 0.01, 0.01]
+k_pid_vsp: [150, 10, 1]
 
 
 # Drone parameters

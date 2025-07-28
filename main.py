@@ -49,7 +49,7 @@ def main():
     sim = create_simulation(drone, world, waypoints, parameters, noise_model)
 
     # sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed = None)
-    sim.startSimulation(stop_at_target=True)
+    sim.startSimulation(stop_at_target=False, use_static_target=True, verbose=True)
 
     # Plot 3D animation of the drone's trajectory
     plot3DAnimation(np.array(sim.positions), 
@@ -103,15 +103,18 @@ def create_training_waypoints() -> list:
         {'x': 10.0, 'y': 10.0, 'z': 10.0, 'v': 5}    # Final target: near origin at low altitude
     ]
 
-def create_initial_state() -> dict:
+def create_initial_state(x: float = 0, y: float = 0, z: float = 0) -> dict:
     """
     Create the initial state of the drone.
-    
+    Parameters:
+        x (float): Initial x position.
+        y (float): Initial y position.
+        z (float): Initial z position.
     Returns:
         dict: Initial state of the drone.
     """
     return {
-        'pos': np.array([0.0, 0.0, 0.0]),
+        'pos': np.array([x, y, z]),
         'vel': np.array([0.0, 0.0, 0.0]),
         'angles': np.array([0.0, 0.0, 0.0]),  # roll, pitch, yaw
         'ang_vel': np.array([0.0, 0.0, 0.0]),
@@ -263,7 +266,6 @@ def create_simulation(drone, world, waypoints, parameters, noise_model=None) -> 
         target_reached_threshold=float(parameters['threshold']),
         target_shift_threshold_distance=float(parameters['target_shift_threshold_distance']),
         noise_model=noise_model  # Use DNN model
-        
     )
 
 
