@@ -157,6 +157,90 @@ class Simulation:
         # Calculate distance from target
         distance = np.linalg.norm(drone_pos - target)
         return target, distance
+
+    def compute_dynamic_target(self, current_seg_idx: int,
+                               seg_start: np.ndarray,
+                               seg_end: np.ndarray,
+                               v_des: float,
+                               k_lookahead: float = 1.0) -> tuple:
+        """Return the dynamic target and update the current segment if needed.
+
+        Parameters
+        ----------
+        current_seg_idx : int
+            Index of the current segment.
+        seg_start : np.ndarray
+            Start point of the current segment.
+        seg_end : np.ndarray
+            End point of the current segment.
+        v_des : float
+            Desired speed for the current segment.
+        k_lookahead : float, optional
+            Scaling factor for the look-ahead distance, by default ``1.0``.
+
+        Returns
+        -------
+        tuple
+            ``(target, current_seg_idx, seg_start, seg_end, v_des)`` with the
+            new target and updated segment information.
+        """
+        target, distance = self._compute_moving_target(
+            seg_start, seg_end, v_des, k=k_lookahead)
+
+        if distance <= self.target_shift_threshold_distance:
+            current_seg_idx += 1
+            if current_seg_idx < len(self.waypoints):
+                seg_start = seg_end
+                seg_end = np.array([
+                    self.waypoints[current_seg_idx]['x'],
+                    self.waypoints[current_seg_idx]['y'],
+                    self.waypoints[current_seg_idx]['z']
+                ])
+                v_des = self.waypoints[current_seg_idx]['v']
+                target, _ = self._compute_moving_target(
+                    seg_start, seg_end, v_des, k=k_lookahead)
+            else:
+                target = seg_end
+                current_seg_idx = len(self.waypoints)
+
+        return target, current_seg_idx, seg_start, seg_end, v_des
+
+    def compute_static_target(self, current_seg_idx: int,
+                              seg_end: np.ndarray) -> tuple:
+        """Return a static target positioned at the next waypoint.
+
+        The target is simply the next waypoint. When the drone comes within
+        ``target_shift_threshold_distance`` of the current waypoint, the target
+        is updated to the following one until the final waypoint is reached.
+
+        Parameters
+        ----------
+        current_seg_idx : int
+            Index of the current waypoint.
+        seg_end : np.ndarray
+            Current target waypoint.
+
+        Returns
+        -------
+        tuple
+            ``(target, current_seg_idx, seg_end)`` with the new target and
+            updated waypoint information.
+        """
+        drone_pos = self.drone.state['pos']
+        distance = np.linalg.norm(drone_pos - seg_end)
+
+        if distance <= self.target_shift_threshold_distance:
+            current_seg_idx += 1
+            if current_seg_idx < len(self.waypoints):
+                seg_end = np.array([
+                    self.waypoints[current_seg_idx]['x'],
+                    self.waypoints[current_seg_idx]['y'],
+                    self.waypoints[current_seg_idx]['z']
+                ])
+            else:
+                current_seg_idx = len(self.waypoints)
+
+        return seg_end, current_seg_idx, seg_end
     
     def clear_histories(self):
         """
@@ -214,15 +298,17 @@ class Simulation:
         self.spl_history.append(avg_spl / count)
         self.swl_history.append(avg_swl / count)
 
-    def startSimulation(self, stop_at_target: bool = True, 
-                        verbose: bool = True, 
-                        stop_sim_if_not_moving: bool = False):
+    def startSimulation(self, stop_at_target: bool = True,
+                        verbose: bool = True,
+                        stop_sim_if_not_moving: bool = False,
+                        use_static_target: bool = False):
         """
-        Start the simulation of the drone following dynamic targets along the waypoints.
+        Start the simulation of the drone following dynamic or static targets along the waypoints.
         Parameters:
             stop_at_target (bool): If True, stop when the final target is reached.
             verbose (bool): If True, print simulation progress and completion messages.
             stop_sim_if_not_moving (bool): If True, stop simulation if the drone is not moving for a certain period.
+            use_static_target (bool): If True, use ``compute_static_target`` instead of dynamic targeting.
 
         This method updates the drone's state at each time step and stores data in class attributes.
         """
@@ -251,27 +337,12 @@ class Simulation:
 
         # Main simulation loop
         for step in range(num_steps):
-            # Compute dynamic target
-            target_dynamic, distance = self._compute_moving_target(
-                seg_start, seg_end, v_des, k=k_lookahead)
-
-            # Shift to next segment if needed
-            if distance <= self.target_shift_threshold_distance:
-                current_seg_idx += 1
-                # If end of waypoints is still not reached, update segment targets
-                if current_seg_idx < len(self.waypoints):
-                    seg_start = seg_end
-                    seg_end = np.array([
-                        self.waypoints[current_seg_idx]['x'],
-                        self.waypoints[current_seg_idx]['y'],
-                        self.waypoints[current_seg_idx]['z']])
-                    v_des = self.waypoints[current_seg_idx]['v']
-                    target_dynamic, _ = self._compute_moving_target(
-                        seg_start, seg_end, v_des, k=k_lookahead)
-                # If end of waypoints is reached, set target to the last waypoint
-                else:
-                    target_dynamic = seg_end
-                    current_seg_idx = len(self.waypoints)  # Final segment reached
+            if use_static_target:
+                target_dynamic, current_seg_idx, seg_end = self.compute_static_target(
+                    current_seg_idx, seg_end)
+            else:
+                target_dynamic, current_seg_idx, seg_start, seg_end, v_des = self.compute_dynamic_target(
+                    current_seg_idx, seg_start, seg_end, v_des, k_lookahead)
 
             # Update drone state
             self.drone.update_state({'x': target_dynamic[0], 'y': target_dynamic[1], 'z': target_dynamic[2]},
