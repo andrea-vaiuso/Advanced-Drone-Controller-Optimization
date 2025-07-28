@@ -1,9 +1,12 @@
+import json
+import os
+from datetime import datetime
+from time import time
+
 import numpy as np
 from bayes_opt import BayesianOptimization
 from World import World
 import main as mainfunc
-from datetime import datetime
-from time import time
 
 # Optimization parameters
 iteration = 0
@@ -11,8 +14,36 @@ n_iter = 5000
 costs = []
 best_target = -float('inf')
 best_params = None
-simulation_time = 150.0 
-opt_output_path = f"Optimizations/optimization_output_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+simulation_time = 150.0
+
+timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+base_dir = os.path.join('Optimizations', 'Bayesian', timestamp)
+os.makedirs(base_dir, exist_ok=True)
+
+opt_output_path = os.path.join(base_dir, 'best_parameters.txt')
+log_path = os.path.join(base_dir, 'optimization_log.json')
+
+start_time = time()
+last_time = start_time
+
+
+def log_step(params: dict, cost: float) -> None:
+    """Append a single optimization step to the JSON log file."""
+    global last_time
+    current = time()
+    entry = {
+        'target': -cost,
+        'params': {k: float(v) for k, v in params.items()},
+        'datetime': {
+            'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+            'elapsed': current - start_time,
+            'delta': current - last_time,
+        },
+    }
+    with open(log_path, 'a') as f:
+        json.dump(entry, f)
+        f.write('\n')
+    last_time = current
 
 parameters = mainfunc.load_parameters("parameters.yaml")
 thrust_max = mainfunc.get_max_thrust_from_rotor_model(parameters)
@@ -22,6 +53,7 @@ world = World.load_world(parameters['world_data_path'])
 
 
 def simulate_pid(pid_gains):
+    """Run a simulation with the given PID gains and return the cost metrics."""
 
     # Initial drone state
     init_state = mainfunc.create_initial_state()
@@ -62,22 +94,25 @@ def objective(kp_pos, ki_pos, kd_pos,
               kp_att, ki_att, kd_att,
               kp_hsp, ki_hsp, kd_hsp,
               kp_vsp, ki_vsp, kd_vsp):
+    """Objective function called by the Bayesian optimizer."""
     global iteration, best_target, best_params
 
     iteration += 1
-    cost, final_time, final_distance, pitch_osc, roll_osc, thrust_osc, targ_reached = simulate_pid(
-        pid_gains={
+    params = {
         'kp_pos': kp_pos, 'ki_pos': ki_pos, 'kd_pos': kd_pos,
         'kp_alt': kp_alt, 'ki_alt': ki_alt, 'kd_alt': kd_alt,
         'kp_att': kp_att, 'ki_att': ki_att, 'kd_att': kd_att,
-        'kp_yaw': 0.5, 'ki_yaw': 1e-6, 'kd_yaw': 0.1,  # Fixed yaw PID gains
+        'kp_yaw': 0.5, 'ki_yaw': 1e-6, 'kd_yaw': 0.1,
         'kp_hsp': kp_hsp, 'ki_hsp': ki_hsp, 'kd_hsp': kd_hsp,
         'kp_vsp': kp_vsp, 'ki_vsp': ki_vsp, 'kd_vsp': kd_vsp
     }
+    cost, final_time, final_distance, pitch_osc, roll_osc, thrust_osc, targ_reached = simulate_pid(
+        pid_gains=params
     )
-    target = -cost  # bayes_opt massimizza
+    log_step(params, cost)
+    target = -cost  # bayes_opt maximizes
 
-    # se questo target è migliore del best-so-far, aggiorna file
+    # If this target is better than the best so far, update the file
     if target > best_target:
         best_target = target
         best_params = {
@@ -90,7 +125,7 @@ def objective(kp_pos, ki_pos, kd_pos,
             'final_time': final_time,
             'cost': cost
         }
-        # scrivi su file
+        # write to file
         with open("opt_temp.txt", 'w') as f:
             f.write(f"Iteration: {iteration}\n")
             for k, v in best_params.items():
@@ -101,12 +136,14 @@ def objective(kp_pos, ki_pos, kd_pos,
     return target
 
 def seconds_to_hhmmss(seconds):
+    """Convert seconds to a ``HH:MM:SS`` formatted string."""
     hours = int(seconds // 3600)
     minutes = int((seconds % 3600) // 60)
     secs = int(seconds % 60)
     return f"{hours:02}:{minutes:02}:{secs:02}"
 
 def main():
+    """Run the Bayesian PID gain optimization."""
     # Define the bounds for the optimization variables
     pbounds = {
         'kp_pos': (1e-6, 1e3), 
