@@ -9,7 +9,6 @@ from Noise.EmpaModel import NoiseModel as EmpaModel
 from Rotor.TorchRotorModel import RotorModel
 import yaml
 
-
 def main():
     """
     Run the drone simulation and plot the results.
