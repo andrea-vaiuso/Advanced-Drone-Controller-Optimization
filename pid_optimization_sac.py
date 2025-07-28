@@ -88,12 +88,12 @@ class PIDGainEnv(gym.Env):
 
     def step(self, action: np.ndarray):  # type: ignore[override]
         gains = {
-            'kp_pos': float(action[0]), 'ki_pos': float(action[1]), 'kd_pos': float(action[2]),
-            'kp_alt': float(action[3]), 'ki_alt': float(action[4]), 'kd_alt': float(action[5]),
-            'kp_att': float(action[6]), 'ki_att': float(action[7]), 'kd_att': float(action[8]),
-            'kp_yaw': 0.5, 'ki_yaw': 1e-6, 'kd_yaw': 0.1,
-            'kp_hsp': float(action[9]), 'ki_hsp': float(action[10]), 'kd_hsp': float(action[11]),
-            'kp_vsp': float(action[9]), 'ki_vsp': float(action[10]), 'kd_vsp': float(action[11]),
+            'k_pid_pos': (float(action[0]), float(action[1]), float(action[2])),
+            'k_pid_alt': (float(action[3]), float(action[4]), float(action[5])),
+            'k_pid_att': (float(action[6]), float(action[7]), float(action[8])),
+            'k_pid_yaw': (0.5, 1e-6, 0.1),
+            'k_pid_hsp': (float(action[9]), float(action[10]), float(action[11])),
+            'k_pid_vsp': (float(action[9]), float(action[10]), float(action[11])),
         }
         cost, final_time, final_distance, pitch_osc, roll_osc, thrust_osc, reached = simulate_pid(gains)
         reward = -cost
