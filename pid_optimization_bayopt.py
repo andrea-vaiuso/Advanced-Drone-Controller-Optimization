@@ -98,11 +98,13 @@ def simulate_pid(pid_gains):
     thrust_osc = np.sum(np.abs(np.diff(sim.thrust_history))) * 1e-5 # Thrust oscillation calculated as the sum of absolute differences in thrust values
     osc_weight = 3.0
 
-    cost = final_time + (final_distance ** 0.9) + osc_weight * (pitch_osc + roll_osc + thrust_osc)
-    if not sim.has_moved: cost += 1000
-    elif not sim.has_reached_target: cost += 1000
+    perc_completed = sim.current_seg_idx / len(sim.waypoints)
 
-    return cost, final_time, final_distance, pitch_osc, roll_osc, thrust_osc, sim.has_reached_target
+    cost = final_time + (final_distance ** 0.9) + osc_weight * (pitch_osc + roll_osc + thrust_osc) + \
+           1000 * (1 - perc_completed)  
+    if not sim.has_moved: cost += 1000
+
+    return cost, final_time, final_distance, pitch_osc, roll_osc, thrust_osc, sim.has_reached_target, sim.current_seg_idx, len(sim.waypoints)
 
 def objective(kp_pos, ki_pos, kd_pos,
               kp_alt, ki_alt, kd_alt,
@@ -121,7 +123,7 @@ def objective(kp_pos, ki_pos, kd_pos,
         'k_pid_hsp': (kp_hsp, ki_hsp, kd_hsp),
         'k_pid_vsp': (kp_vsp, ki_vsp, kd_vsp),
     }
-    cost, final_time, final_distance, pitch_osc, roll_osc, thrust_osc, targ_reached = simulate_pid(
+    cost, final_time, final_distance, pitch_osc, roll_osc, thrust_osc, targ_reached, n_targets_completed, tot_targets = simulate_pid(
         pid_gains=params
     )
     log_step(params, cost)
@@ -147,7 +149,7 @@ def objective(kp_pos, ki_pos, kd_pos,
                 f.write(f"{k}: {v}\n")
             f.write(f"target = {best_target}\n")
 
-    print(f"{iteration}/{n_iter}: cost={cost:.4f}, best target={best_target:.4f}, final_time={final_time:.2f}s, final_distance={final_distance:.2f}m, pitch_osc={pitch_osc:.2f}, roll_osc={roll_osc:.2f}, thrust_osc={thrust_osc:.2f}, target_reached={targ_reached}")
+    print(f"{iteration}/{n_iter}: cost={cost:.4f}, best target={best_target:.4f}, final_time={final_time:.2f}s, final_distance={final_distance:.2f}m, pitch_osc={pitch_osc:.2f}, roll_osc={roll_osc:.2f}, thrust_osc={thrust_osc:.2f}, target_reached={targ_reached}, completed_targets={n_targets_completed}/{tot_targets}")
     return target
 
 def seconds_to_hhmmss(seconds):

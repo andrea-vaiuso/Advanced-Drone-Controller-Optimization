@@ -75,6 +75,7 @@ class Simulation:
 
         # Simulation runtime
         self.simulation_time = 0.0
+        self.current_seg_idx = 0
         self.navigation_time = None
         self.has_moved = True
         self.has_reached_target = False
@@ -110,7 +111,7 @@ class Simulation:
         t_0 = time.time()
 
         # Initialize dynamic targeting
-        current_seg_idx = 0
+        
         seg_start = self.drone.state['pos'].copy()
         seg_end = np.array([self.waypoints[0]['x'], self.waypoints[0]['y'], self.waypoints[0]['z']])
         v_des = self.waypoints[0]['v']
@@ -120,11 +121,11 @@ class Simulation:
         # Main simulation loop
         for step in range(num_steps):
             if use_static_target:
-                target_dynamic, current_seg_idx, seg_end = self.compute_static_target(
-                    current_seg_idx, seg_end)
+                target_dynamic, self.current_seg_idx, seg_end = self.compute_static_target(
+                    self.current_seg_idx, seg_end)
             else:
-                target_dynamic, current_seg_idx, seg_start, seg_end, v_des = self.compute_dynamic_target(
-                    current_seg_idx, seg_start, seg_end, v_des, k_lookahead)
+                target_dynamic, self.current_seg_idx, seg_start, seg_end, v_des = self.compute_dynamic_target(
+                    self.current_seg_idx, seg_start, seg_end, v_des, k_lookahead)
 
             # Update drone state
             self.drone.update_state({'x': target_dynamic[0], 'y': target_dynamic[1], 'z': target_dynamic[2]},
@@ -144,7 +145,7 @@ class Simulation:
             
 
             # Check for final target reached only if all the other waypoints have been reached
-            if stop_at_target and current_seg_idx == len(self.waypoints):
+            if stop_at_target and self.current_seg_idx == len(self.waypoints):
                 final_target = np.array([
                     self.waypoints[-1]['x'], self.waypoints[-1]['y'], self.waypoints[-1]['z']])
                 if np.linalg.norm(self.drone.state['pos'] - final_target) < self.target_reached_threshold:
