@@ -28,7 +28,12 @@ python main.py
 
 Tune PID gains with Bayesian optimization:
 ```bash
-python pid_optimization.py
+python pid_optimization_bayopt.py
+```
+
+Tune PID gains with Particle Swarm Optimization:
+```bash
+python pid_optimization_PSO.py
 ```
 
 Edit world data using the optional GUI:
@@ -43,7 +48,8 @@ python world_creation_gui.py
 - `Simulation.py` – runs the simulation loop and noise modeling.
 - `Rotor/` – rotor model code and pretrained weights.
 - `Noise/` – data and models for noise effects.
-- `pid_optimization.py` – script for Bayesian PID tuning.
+- `pid_optimization_bayopt.py` – script for Bayesian PID tuning.
+- `pid_optimization_PSO.py` – script for PSO-based PID tuning.
 - `world_creation_gui.py` – simple GUI world editor.
 
 ## Technologies Used
