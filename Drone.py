@@ -160,7 +160,7 @@ class QuadcopterModel:
         Returns:
             tuple: RPM values for each motor.
         """
-        b = 0.001
+        b = 0.0007
         d = 7.5e-7
         l = self.l
         
