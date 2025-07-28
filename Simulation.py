@@ -1,6 +1,6 @@
 # Author: Andrea Vaiuso
-# Version: 2.0
-# Date: 15.07.2025
+# Version: 2.1
+# Date: 28.07.2025
 # Description: This module defines the Simulation class for simulating a drone's flight path with dynamic targets,
 # wind effects, and noise emissions. It includes methods for setting wind conditions, computing dynamic targets,
 # and running the simulation with data collection.
@@ -116,7 +116,7 @@ class Simulation:
 
         self.simulate_wind = True
 
-    def _compute_moving_target(self, drone_pos: np.ndarray, seg_start: np.ndarray,
+    def _compute_moving_target(self, seg_start: np.ndarray,
                                seg_end: np.ndarray, v_des: float,
                                k: float = 1.0) -> tuple:
         """
@@ -132,6 +132,7 @@ class Simulation:
             tuple: (target, distance) where target is the dynamic target point [x, y, z],
                 and distance is the distance from the drone to the target.
         """
+        drone_pos = self.drone.state['pos']
         seg_vector = seg_end - seg_start
         seg_length = np.linalg.norm(seg_vector)
 
@@ -156,19 +157,12 @@ class Simulation:
         # Calculate distance from target
         distance = np.linalg.norm(drone_pos - target)
         return target, distance
-
-    def startSimulation(self, stop_at_target: bool = True, verbose: bool = True, stop_sim_if_not_moving: bool = False):
+    
+    def clear_histories(self):
         """
-        Start the simulation of the drone following dynamic targets along the waypoints.
-        Parameters:
-            stop_at_target (bool): If True, stop when the final target is reached.
-            verbose (bool): If True, print simulation progress and completion messages.
-            stop_sim_if_not_moving (bool): If True, stop simulation if the drone is not moving for a certain period.
-
-        This method updates the drone's state at each time step and stores data in class attributes.
+        Clear all histories collected during the simulation.
+        This method resets all data collections to empty lists.
         """
-        # Reset runtime and histories
-        self.simulation_time = 0.0
         self.positions.clear()
         self.angles_history.clear()
         self.rpms_history.clear()
@@ -181,6 +175,62 @@ class Simulation:
         self.thrust_history.clear()
         self.delta_b_history.clear()
         self.thrust_no_wind_history.clear()
+
+    def store_log_data(self, current_time, target_dynamic):
+        """
+        Store log data for the current simulation step.
+        """
+        self.positions.append(self.drone.state['pos'].copy())
+        self.angles_history.append(self.drone.state['angles'].copy())
+        self.rpms_history.append(self.drone.state['rpm'].copy())
+        self.time_history.append(current_time)
+        self.horiz_speed_history.append(np.linalg.norm(self.drone.state['vel'][:2]))
+        self.vertical_speed_history.append(self.drone.state['vel'][2])
+        self.targets.append(target_dynamic.copy())
+        self.thrust_history.append(self.drone.thrust)
+        self.delta_b_history.append(self.drone.delta_b)
+        self.thrust_no_wind_history.append(self.drone.thrust_no_wind)
+
+    def compute_noise_emissions(self):
+        # Compute noise emissions around the drone
+        avg_spl = 0.0
+        avg_swl = 0.0
+        x_d, y_d, z_d = self.drone.state['pos']
+        # If position is not valid, set position to zero
+        if np.isnan(x_d) or np.isnan(y_d) or np.isnan(z_d):
+            x_d, y_d, z_d = 0.0, 0.0, MIN_HEIGHT_FROM_GROUND
+        areas, params = self.world.get_areas_in_circle(
+            x=int(x_d), y=int(y_d), height=MIN_HEIGHT_FROM_GROUND,
+            radius=self.noise_annoyance_radius, include_areas_out_of_bounds=True)
+        for area in areas:
+            x_a, y_a, _ = area
+            dist = np.linalg.norm([x_d, y_d, z_d] - np.array([x_a, y_a, MIN_HEIGHT_FROM_GROUND]))
+            zeta = np.arctan2(abs(z_d), dist)
+            spl, swl = self.noise_model.get_noise_emissions(
+                zeta_angle=zeta, rpms=self.drone.state['rpm'], distance=dist)
+            avg_spl += spl
+            avg_swl += swl
+        count = len(areas) if areas else 1
+        self.spl_history.append(avg_spl / count)
+        self.swl_history.append(avg_swl / count)
+
+    def startSimulation(self, stop_at_target: bool = True, 
+                        verbose: bool = True, 
+                        stop_sim_if_not_moving: bool = False):
+        """
+        Start the simulation of the drone following dynamic targets along the waypoints.
+        Parameters:
+            stop_at_target (bool): If True, stop when the final target is reached.
+            verbose (bool): If True, print simulation progress and completion messages.
+            stop_sim_if_not_moving (bool): If True, stop simulation if the drone is not moving for a certain period.
+
+        This method updates the drone's state at each time step and stores data in class attributes.
+        """
+        # Reset runtime and histories
+        self.simulation_time = 0.0
+        
+        # Clear previous histories
+        self.clear_histories()
 
         # Reset drone state to initial conditions
         self.drone.reset_state() 
@@ -197,17 +247,18 @@ class Simulation:
         seg_end = np.array([self.waypoints[0]['x'], self.waypoints[0]['y'], self.waypoints[0]['z']])
         v_des = self.waypoints[0]['v']
         k_lookahead = 1.0
-
         num_steps = int(self.max_simulation_time / self.dt)
 
+        # Main simulation loop
         for step in range(num_steps):
             # Compute dynamic target
             target_dynamic, distance = self._compute_moving_target(
-                self.drone.state['pos'], seg_start, seg_end, v_des, k=k_lookahead)
+                seg_start, seg_end, v_des, k=k_lookahead)
 
             # Shift to next segment if needed
             if distance <= self.dynamic_target_shift_threshold_distance:
                 current_seg_idx += 1
+                # If end of waypoints is still not reached, update segment targets
                 if current_seg_idx < len(self.waypoints):
                     seg_start = seg_end
                     seg_end = np.array([
@@ -216,7 +267,8 @@ class Simulation:
                         self.waypoints[current_seg_idx]['z']])
                     v_des = self.waypoints[current_seg_idx]['v']
                     target_dynamic, _ = self._compute_moving_target(
-                        self.drone.state['pos'], seg_start, seg_end, v_des, k=k_lookahead)
+                        seg_start, seg_end, v_des, k=k_lookahead)
+                # If end of waypoints is reached, set target to the last waypoint
                 else:
                     target_dynamic = seg_end
                     current_seg_idx = len(self.waypoints)  # Final segment reached
@@ -232,58 +284,30 @@ class Simulation:
 
             # Store data at specified intervals
             if step % self.frame_skip == 0:
-                self.positions.append(self.drone.state['pos'].copy())
-                self.angles_history.append(self.drone.state['angles'].copy())
-                self.rpms_history.append(self.drone.state['rpm'].copy())
-                self.time_history.append(current_time)
-                self.horiz_speed_history.append(np.linalg.norm(self.drone.state['vel'][:2]))
-                self.vertical_speed_history.append(self.drone.state['vel'][2])
-                self.targets.append(target_dynamic.copy())
-                self.thrust_history.append(self.drone.thrust)
-                self.delta_b_history.append(self.drone.delta_b)
-                self.thrust_no_wind_history.append(self.drone.thrust_no_wind)
+                self.store_log_data()
 
                 if self.noise_model:
-                    # Compute noise emissions around the drone
-                    avg_spl = 0.0
-                    avg_swl = 0.0
-                    x_d, y_d, z_d = self.drone.state['pos']
-                    # If position is not valid, set position to zero
-                    if np.isnan(x_d) or np.isnan(y_d) or np.isnan(z_d):
-                        x_d, y_d, z_d = 0.0, 0.0, MIN_HEIGHT_FROM_GROUND
-                    areas, params = self.world.get_areas_in_circle(
-                        x=int(x_d), y=int(y_d), height=MIN_HEIGHT_FROM_GROUND,
-                        radius=self.noise_annoyance_radius, include_areas_out_of_bounds=True)
-                    for area in areas:
-                        x_a, y_a, _ = area
-                        dist = np.linalg.norm([x_d, y_d, z_d] - np.array([x_a, y_a, MIN_HEIGHT_FROM_GROUND]))
-                        zeta = np.arctan2(abs(z_d), dist)
-                        spl, swl = self.noise_model.get_noise_emissions(
-                            zeta_angle=zeta, rpms=self.drone.state['rpm'], distance=dist)
-                        avg_spl += spl
-                        avg_swl += swl
-                    count = len(areas) if areas else 1
-                    self.spl_history.append(avg_spl / count)
-                    self.swl_history.append(avg_swl / count)
+                    self.compute_noise_emissions()
+            
+
             # Check for final target reached only if all the other waypoints have been reached
             if stop_at_target and current_seg_idx == len(self.waypoints):
                 final_target = np.array([
                     self.waypoints[-1]['x'], self.waypoints[-1]['y'], self.waypoints[-1]['z']])
                 if np.linalg.norm(self.drone.state['pos'] - final_target) < self.target_reached_threshold:
-                    if verbose:
-                        print(f"Final target reached at time: {current_time:.2f} s")
                     self.navigation_time = current_time
                     self.has_reached_target = True
+                    if verbose:
+                        print(f"Final target reached at time: {current_time:.2f} s")
                     break
 
             # Check if drone is not moving 
             if current_time > 5 and np.linalg.norm(self.horiz_speed_history) < 1e-2 and np.linalg.norm(self.vertical_speed_history) < 1e-2 and stop_sim_if_not_moving:
-                
+                self.navigation_time = current_time
+                self.has_moved = False
                 if verbose:
                     print(f"Drone stopped at time because was not moving: {current_time:.2f} s")
                     print(f"To change this behavior, set stop_sim_if_not_moving to False.")
-                self.navigation_time = current_time
-                self.has_moved = False
                 break
 
         # End timer
