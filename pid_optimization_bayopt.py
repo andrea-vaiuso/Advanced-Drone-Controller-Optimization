@@ -100,11 +100,15 @@ def simulate_pid(pid_gains):
 
     perc_completed = sim.current_seg_idx / len(sim.waypoints)
 
-    cost = final_time + (final_distance ** 0.9) + osc_weight * (pitch_osc + roll_osc + thrust_osc) + \
-           1000 * (1 - perc_completed)  
+    time_cost = final_time
+    final_distance_cost = final_distance ** 0.9
+    oscillation_cost = osc_weight * (pitch_osc + roll_osc + thrust_osc)
+    completition_cost = 1000 * (1 - perc_completed)  # Penalize for not reaching the target
+
+    cost = time_cost + final_distance_cost + oscillation_cost + completition_cost
     if not sim.has_moved: cost += 1000
 
-    return cost, final_time, final_distance, pitch_osc, roll_osc, thrust_osc, sim.has_reached_target, sim.current_seg_idx, len(sim.waypoints)
+    return cost, time_cost, final_distance_cost, oscillation_cost, completition_cost, sim.current_seg_idx, len(sim.waypoints)
 
 def objective(kp_pos, ki_pos, kd_pos,
               kp_alt, ki_alt, kd_alt,
@@ -123,7 +127,7 @@ def objective(kp_pos, ki_pos, kd_pos,
         'k_pid_hsp': (kp_hsp, ki_hsp, kd_hsp),
         'k_pid_vsp': (kp_vsp, ki_vsp, kd_vsp),
     }
-    cost, final_time, final_distance, pitch_osc, roll_osc, thrust_osc, targ_reached, n_targets_completed, tot_targets = simulate_pid(
+    cost, time_cost, final_distance_cost, oscillation_cost, completition_cost, n_targets_completed, tot_targets = simulate_pid(
         pid_gains=params
     )
     log_step(params, cost)
@@ -139,7 +143,7 @@ def objective(kp_pos, ki_pos, kd_pos,
             'k_pid_yaw': (0.5, 1e-6, 0.1),
             'k_pid_hsp': (kp_hsp, ki_hsp, kd_hsp),
             'k_pid_vsp': (kp_vsp, ki_vsp, kd_vsp),
-            'final_time': final_time,
+            'final_time': time_cost,
             'cost': cost,
         }
         # write to file
@@ -149,7 +153,8 @@ def objective(kp_pos, ki_pos, kd_pos,
                 f.write(f"{k}: {v}\n")
             f.write(f"target = {best_target}\n")
 
-    print(f"{iteration}/{n_iter}: cost={cost:.4f}, best target={best_target:.4f}, final_time={final_time:.2f}s, final_distance={final_distance:.2f}m, pitch_osc={pitch_osc:.2f}, roll_osc={roll_osc:.2f}, thrust_osc={thrust_osc:.2f}, target_reached={targ_reached}, completed_targets={n_targets_completed}/{tot_targets}")
+    print(f"{iteration}/{n_iter}: cost={cost:.4f}, best_cost={best_target:.4f}, time_cost={time_cost:.2f}, " + \
+           f"distance_cost={final_distance_cost:.2f}, oscillation_cost={oscillation_cost:.2f}, completition_cost={completition_cost:.2f} | completed_targets={n_targets_completed}/{tot_targets}")
     return target
 
 def seconds_to_hhmmss(seconds):
