@@ -33,7 +33,8 @@ def log_step(params: dict, cost: float) -> None:
     current = time()
     entry = {
         'target': -cost,
-        'params': {k: float(v) for k, v in params.items()},
+        'params': {k: ([float(x) for x in v] if isinstance(v, (list, tuple)) else float(v))
+                   for k, v in params.items()},
         'datetime': {
             'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'elapsed': current - start_time,
@@ -99,12 +100,12 @@ def objective(kp_pos, ki_pos, kd_pos,
 
     iteration += 1
     params = {
-        'kp_pos': kp_pos, 'ki_pos': ki_pos, 'kd_pos': kd_pos,
-        'kp_alt': kp_alt, 'ki_alt': ki_alt, 'kd_alt': kd_alt,
-        'kp_att': kp_att, 'ki_att': ki_att, 'kd_att': kd_att,
-        'kp_yaw': 0.5, 'ki_yaw': 1e-6, 'kd_yaw': 0.1,
-        'kp_hsp': kp_hsp, 'ki_hsp': ki_hsp, 'kd_hsp': kd_hsp,
-        'kp_vsp': kp_vsp, 'ki_vsp': ki_vsp, 'kd_vsp': kd_vsp
+        'k_pid_pos': (kp_pos, ki_pos, kd_pos),
+        'k_pid_alt': (kp_alt, ki_alt, kd_alt),
+        'k_pid_att': (kp_att, ki_att, kd_att),
+        'k_pid_yaw': (0.5, 1e-6, 0.1),
+        'k_pid_hsp': (kp_hsp, ki_hsp, kd_hsp),
+        'k_pid_vsp': (kp_vsp, ki_vsp, kd_vsp),
     }
     cost, final_time, final_distance, pitch_osc, roll_osc, thrust_osc, targ_reached = simulate_pid(
         pid_gains=params
@@ -116,14 +117,14 @@ def objective(kp_pos, ki_pos, kd_pos,
     if target > best_target:
         best_target = target
         best_params = {
-            'kp_pos': kp_pos, 'ki_pos': ki_pos, 'kd_pos': kd_pos,
-            'kp_alt': kp_alt, 'ki_alt': ki_alt, 'kd_alt': kd_alt,
-            'kp_att': kp_att, 'ki_att': ki_att, 'kd_att': kd_att,
-            'kp_yaw': 0.5, 'ki_yaw': 1e-6, 'kd_yaw': 0.1,  # Fixed yaw PID gains
-            'kp_hsp': kp_hsp, 'ki_hsp': ki_hsp, 'kd_hsp': kd_hsp,
-            'kp_vsp': kp_vsp, 'ki_vsp': ki_vsp, 'kd_vsp': kd_vsp,
+            'k_pid_pos': (kp_pos, ki_pos, kd_pos),
+            'k_pid_alt': (kp_alt, ki_alt, kd_alt),
+            'k_pid_att': (kp_att, ki_att, kd_att),
+            'k_pid_yaw': (0.5, 1e-6, 0.1),
+            'k_pid_hsp': (kp_hsp, ki_hsp, kd_hsp),
+            'k_pid_vsp': (kp_vsp, ki_vsp, kd_vsp),
             'final_time': final_time,
-            'cost': cost
+            'cost': cost,
         }
         # write to file
         with open("opt_temp.txt", 'w') as f:
@@ -210,23 +211,26 @@ def main():
     print(f"Optimization completed in {tot_time:.2f} seconds.")
     print("Best parameters found:")
     best = optimizer.max['params']
+    best_formatted = {
+        'k_pid_pos': (best['kp_pos'], best['ki_pos'], best['kd_pos']),
+        'k_pid_alt': (best['kp_alt'], best['ki_alt'], best['kd_alt']),
+        'k_pid_att': (best['kp_att'], best['ki_att'], best['kd_att']),
+        'k_pid_yaw': (0.5, 1e-6, 0.1),
+        'k_pid_hsp': (best['kp_hsp'], best['ki_hsp'], best['kd_hsp']),
+        'k_pid_vsp': (best['kp_vsp'], best['ki_vsp'], best['kd_vsp']),
+    }
 
-    print("kp_yaw, ki_yaw, kd_yaw = 0.5, 1e-6, 0.1")
-    print("kp_pos, ki_pos, kd_pos = {:.5g}, {:.5g}, {:.5g}".format(
-        best['kp_pos'], best['ki_pos'], best['kd_pos']))
-    print("kp_alt, ki_alt, kd_alt = {:.5g}, {:.5g}, {:.5g}".format(
-        best['kp_alt'], best['ki_alt'], best['kd_alt']))
-    print("kp_att, ki_att, kd_att = {:.5g}, {:.5g}, {:.5g}".format(
-        best['kp_att'], best['ki_att'], best['kd_att']))
-    print("kp_hsp, ki_hsp, kd_hsp = {:.5g}, {:.5g}, {:.5g}".format(
-        best['kp_hsp'], best['ki_hsp'], best['kd_hsp']))
-    print("kp_vsp, ki_vsp, kd_vsp = {:.5g}, {:.5g}, {:.5g}".format(
-        best['kp_vsp'], best['ki_vsp'], best['kd_vsp']))
+    print("k_pid_yaw = (0.5, 1e-6, 0.1)")
+    print("k_pid_pos = ({:.5g}, {:.5g}, {:.5g})".format(*best_formatted['k_pid_pos']))
+    print("k_pid_alt = ({:.5g}, {:.5g}, {:.5g})".format(*best_formatted['k_pid_alt']))
+    print("k_pid_att = ({:.5g}, {:.5g}, {:.5g})".format(*best_formatted['k_pid_att']))
+    print("k_pid_hsp = ({:.5g}, {:.5g}, {:.5g})".format(*best_formatted['k_pid_hsp']))
+    print("k_pid_vsp = ({:.5g}, {:.5g}, {:.5g})".format(*best_formatted['k_pid_vsp']))
     print("Best target value: {:.4f}".format(optimizer.max['target']))
 
     with open(opt_output_path, 'w') as f:
         f.write("Best parameters found:\n")
-        for k, v in best.items():
+        for k, v in best_formatted.items():
             f.write(f"{k}: {v}\n")
         f.write(f"Best target value: {optimizer.max['target']}\n")
         f.write(f"Total optimization time: {seconds_to_hhmmss(tot_time)}\n")

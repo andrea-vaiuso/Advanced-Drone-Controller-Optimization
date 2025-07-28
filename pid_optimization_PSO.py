@@ -42,7 +42,8 @@ def log_step(params: dict, cost: float) -> None:
     current = time()
     entry = {
         'target': -cost,
-        'params': {k: float(v) for k, v in params.items()},
+        'params': {k: ([float(x) for x in v] if isinstance(v, (list, tuple)) else float(v))
+                   for k, v in params.items()},
         'datetime': {
             'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
             'elapsed': current - start_time,
@@ -110,9 +111,15 @@ def pso_optimize(pbounds: dict) -> None:
     velocities = np.zeros_like(positions)
 
     def vector_to_dict(vec):
-        d = {name: float(value) for name, value in zip(names, vec)}
-        d.update({'kp_yaw': 0.5, 'ki_yaw': 1e-6, 'kd_yaw': 0.1})
-        return d
+        vals = {name: float(value) for name, value in zip(names, vec)}
+        return {
+            'k_pid_pos': (vals['kp_pos'], vals['ki_pos'], vals['kd_pos']),
+            'k_pid_alt': (vals['kp_alt'], vals['ki_alt'], vals['kd_alt']),
+            'k_pid_att': (vals['kp_att'], vals['ki_att'], vals['kd_att']),
+            'k_pid_yaw': (0.5, 1e-6, 0.1),
+            'k_pid_hsp': (vals['kp_hsp'], vals['ki_hsp'], vals['kd_hsp']),
+            'k_pid_vsp': (vals['kp_vsp'], vals['ki_vsp'], vals['kd_vsp']),
+        }
 
     personal_best = positions.copy()
     personal_best_cost = np.full(num_particles, np.inf)

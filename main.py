@@ -146,29 +146,12 @@ def load_pid_gains(parameters) -> dict:
         dict: PID gains for position, altitude, attitude, horizontal speed, and vertical speed.
     """
     return {
-        'kp_pos': float(parameters['kp_pos']),
-        'ki_pos': float(parameters['ki_pos']),
-        'kd_pos': float(parameters['kd_pos']),
-
-        'kp_alt': float(parameters['kp_alt']),
-        'ki_alt': float(parameters['ki_alt']),
-        'kd_alt': float(parameters['kd_alt']),
-
-        'kp_att': float(parameters['kp_att']),
-        'ki_att': float(parameters['ki_att']),
-        'kd_att': float(parameters['kd_att']),
-
-        'kp_yaw': float(parameters['kp_yaw']),
-        'ki_yaw': float(parameters['ki_yaw']),
-        'kd_yaw': float(parameters['kd_yaw']),
-
-        'kp_hsp': float(parameters['kp_hsp']),
-        'ki_hsp': float(parameters['ki_hsp']),
-        'kd_hsp': float(parameters['kd_hsp']),
-
-        'kp_vsp': float(parameters['kp_vsp']),
-        'ki_vsp': float(parameters['ki_vsp']),
-        'kd_vsp': float(parameters['kd_vsp'])
+        'k_pid_pos': tuple(map(float, parameters['k_pid_pos'])),
+        'k_pid_alt': tuple(map(float, parameters['k_pid_alt'])),
+        'k_pid_att': tuple(map(float, parameters['k_pid_att'])),
+        'k_pid_yaw': tuple(map(float, parameters['k_pid_yaw'])),
+        'k_pid_hsp': tuple(map(float, parameters['k_pid_hsp'])),
+        'k_pid_vsp': tuple(map(float, parameters['k_pid_vsp'])),
     }
 
 def create_quadcopter_controller(init_state, pid_gains, t_max, parameters) -> QuadCopterController:
