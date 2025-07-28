@@ -8,19 +8,15 @@
 import numpy as np
 
 class PIDController:
-    def __init__(self, kp: float, ki: float, kd: float, windup_limit: float = 100.0):
-        """
-        Initialize the PID controller.
+    def __init__(self, gains: tuple[float, float, float], windup_limit: float = 100.0):
+        """Initialize the PID controller.
 
         Parameters:
-            kp (float): Proportional gain.
-            ki (float): Integral gain.
-            kd (float): Derivative gain.
-            integral_limit (float): Maximum absolute value for the integral term (anti-windup).
+            gains (tuple[float, float, float]): The ``(kp, ki, kd)`` PID gains.
+            windup_limit (float): Maximum absolute value for the integral term
+                (anti-windup).
         """
-        self.kp = kp
-        self.ki = ki
-        self.kd = kd
+        self.kp, self.ki, self.kd = gains
         self.integral = 0.0
         self.prev_error = 0.0
         self.integral_limit = abs(windup_limit)
@@ -76,23 +72,23 @@ class QuadCopterController:
         
         self.max_angle_limit_rad = np.radians(max_angle_limit_deg)  # Convert to radians
         
-        pids = self.unpack_pid_gains(pid_gains)
+        pos, alt, att, yaw_g, hsp, vsp = self.unpack_pid_gains(pid_gains)
 
         # Position PIDs
-        self.pid_x = PIDController(pids[0], pids[1], pids[2], self.u3_limit * anti_windup_contrib)
-        self.pid_y = PIDController(pids[0], pids[1], pids[2], self.u2_limit * anti_windup_contrib)
-        self.pid_z = PIDController(pids[3], pids[4], pids[5], self.u1_limit * anti_windup_contrib)
+        self.pid_x = PIDController(pos, self.u3_limit * anti_windup_contrib)
+        self.pid_y = PIDController(pos, self.u2_limit * anti_windup_contrib)
+        self.pid_z = PIDController(alt, self.u1_limit * anti_windup_contrib)
 
         # Attitude PIDs (roll and pitch)
-        self.pid_roll  = PIDController(pids[6], pids[7], pids[8], self.u2_limit * anti_windup_contrib)
-        self.pid_pitch = PIDController(pids[6], pids[7], pids[8], self.u3_limit * anti_windup_contrib)
+        self.pid_roll  = PIDController(att, self.u2_limit * anti_windup_contrib)
+        self.pid_pitch = PIDController(att, self.u3_limit * anti_windup_contrib)
 
         # Yaw PID
-        self.pid_yaw   = PIDController(pids[9], pids[10], pids[11], self.u4_limit * anti_windup_contrib)
+        self.pid_yaw   = PIDController(yaw_g, self.u4_limit * anti_windup_contrib)
 
         # Speed PIDs (horizontal and vertical)
-        self.pid_h_speed = PIDController(pids[12], pids[13], pids[14], self.max_h_speed_limit * anti_windup_contrib)
-        self.pid_v_speed = PIDController(pids[15], pids[16], pids[17], self.max_v_speed_limit * anti_windup_contrib)
+        self.pid_h_speed = PIDController(hsp, self.max_h_speed_limit * anti_windup_contrib)
+        self.pid_v_speed = PIDController(vsp, self.max_v_speed_limit * anti_windup_contrib)
 
         self.state = state
 
@@ -174,35 +170,14 @@ class QuadCopterController:
             pid_gains (dict): Dictionary containing PID gains.
 
         Returns:
-            tuple: Unpacked PID gains for position, altitude, attitude, and yaw.
+            tuple: Tuples of PID gains for position, altitude, attitude, yaw,
+                horizontal speed and vertical speed controllers.
         """
-        kp_pos = pid_gains['kp_pos']
-        ki_pos = pid_gains['ki_pos']
-        kd_pos = pid_gains['kd_pos']
+        pos = tuple(pid_gains['k_pid_pos'])
+        alt = tuple(pid_gains['k_pid_alt'])
+        att = tuple(pid_gains['k_pid_att'])
+        yaw = tuple(pid_gains['k_pid_yaw'])
+        hsp = tuple(pid_gains['k_pid_hsp'])
+        vsp = tuple(pid_gains['k_pid_vsp'])
 
-        kp_alt = pid_gains['kp_alt']
-        ki_alt = pid_gains['ki_alt']
-        kd_alt = pid_gains['kd_alt']
-
-        kp_att = pid_gains['kp_att']
-        ki_att = pid_gains['ki_att']
-        kd_att = pid_gains['kd_att']
-
-        kp_yaw = pid_gains['kp_yaw']
-        ki_yaw = pid_gains['ki_yaw']
-        kd_yaw = pid_gains['kd_yaw']
-
-        kp_hsp = pid_gains['kp_hsp']
-        ki_hsp = pid_gains['ki_hsp']
-        kd_hsp = pid_gains['kd_hsp']
-
-        kp_vsp = pid_gains['kp_vsp']
-        ki_vsp = pid_gains['ki_vsp']
-        kd_vsp = pid_gains['kd_vsp']
-
-        return (kp_pos, ki_pos, kd_pos, 
-                kp_alt, ki_alt, kd_alt, 
-                kp_att, ki_att, kd_att,
-                kp_yaw, ki_yaw, kd_yaw,
-                kp_hsp, ki_hsp, kd_hsp,
-                kp_vsp, ki_vsp, kd_vsp)
+        return pos, alt, att, yaw, hsp, vsp
