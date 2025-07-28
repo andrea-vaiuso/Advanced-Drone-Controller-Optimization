@@ -261,7 +261,7 @@ def create_simulation(drone, world, waypoints, parameters, noise_model=None) -> 
         max_simulation_time=float(parameters['simulation_time']),
         frame_skip=int(parameters['frame_skip']),
         target_reached_threshold=float(parameters['threshold']),
-        dynamic_target_shift_threshold_distance=float(parameters['dynamic_target_shift_threshold_distance']),
+        target_shift_threshold_distance=float(parameters['target_shift_threshold_distance']),
         noise_model=noise_model  # Use DNN model
         
     )

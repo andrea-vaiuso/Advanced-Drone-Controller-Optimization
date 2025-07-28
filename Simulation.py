@@ -21,7 +21,7 @@ class Simulation:
     def __init__(self, drone: QuadcopterModel, world: World, waypoints: list,
                  dt: float = 0.007, max_simulation_time: float = 200.0, frame_skip: int = 8,
                  target_reached_threshold: float = 2.0,
-                 dynamic_target_shift_threshold_distance: float = 5,
+                 target_shift_threshold_distance: float = 5,
                  noise_model: RotorSoundModel = None, noise_annoyance_radius: int = 100):
         """
         Initialize the simulation with the drone model, world, waypoints, and parameters.
@@ -33,7 +33,7 @@ class Simulation:
             max_simulation_time (float): Maximum simulation time in seconds.
             frame_skip (int): Number of steps to skip for data collection.
             target_reached_threshold (float): Threshold distance to consider the target reached.
-            dynamic_target_shift_threshold_distance (float): Distance to consider for shifting the target.
+            target_shift_threshold_distance (float): Distance to consider for shifting the target.
             noise_model (RotorSoundModel): Optional noise model for simulating drone noise emissions.
             noise_annoyance_radius (int): Radius around the drone to consider for noise emissions.
 
@@ -51,7 +51,7 @@ class Simulation:
         self.max_simulation_time = max_simulation_time
         self.frame_skip = frame_skip
         self.target_reached_threshold = target_reached_threshold
-        self.dynamic_target_shift_threshold_distance = dynamic_target_shift_threshold_distance
+        self.target_shift_threshold_distance = target_shift_threshold_distance
         self.noise_model = noise_model
         self.noise_annoyance_radius = noise_annoyance_radius
 
@@ -256,7 +256,7 @@ class Simulation:
                 seg_start, seg_end, v_des, k=k_lookahead)
 
             # Shift to next segment if needed
-            if distance <= self.dynamic_target_shift_threshold_distance:
+            if distance <= self.target_shift_threshold_distance:
                 current_seg_idx += 1
                 # If end of waypoints is still not reached, update segment targets
                 if current_seg_idx < len(self.waypoints):
@@ -284,7 +284,7 @@ class Simulation:
 
             # Store data at specified intervals
             if step % self.frame_skip == 0:
-                self.store_log_data()
+                self.store_log_data(current_time, target_dynamic)
 
                 if self.noise_model:
                     self.compute_noise_emissions()

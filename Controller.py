@@ -8,7 +8,7 @@
 import numpy as np
 
 class PIDController:
-    def __init__(self, gains: tuple[float, float, float], windup_limit: float = 100.0):
+    def __init__(self, gains: tuple, windup_limit: float = 100.0):
         """Initialize the PID controller.
 
         Parameters:
