@@ -21,10 +21,10 @@ norm_params_path: "Rotor/normalization_params.pth"
 rotor_model_path: "Rotor/rotor_model.pth"
 
 # PID controller settings (yaw remain fixed)
+k_pid_yaw: [0.5, 1e-6, 0.1]
 k_pid_pos: [0.7, 0.01, 0.09]
 k_pid_alt: [0.7, 0, 0.1]
 k_pid_att: [20, 1, 0.01]
-k_pid_yaw: [0.5, 1e-06, 0.1]
 k_pid_hsp: [1, 0.01, 0.01]
 k_pid_vsp: [150, 10, 1]
 

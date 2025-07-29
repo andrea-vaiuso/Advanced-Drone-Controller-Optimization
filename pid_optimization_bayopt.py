@@ -92,7 +92,8 @@ def simulate_pid(pid_gains):
     final_distance = np.linalg.norm(sim.drone.state['pos'] - np.array([final_target['x'],
                                                               final_target['y'],
                                                               final_target['z']]))
-
+    
+    # Measure oscillations as the sum of all elements of the absolute difference array
     pitch_osc = np.sum(np.abs(np.diff(angles[:, 0]))) # Pitch oscillation calculated as the sum of absolute differences in pitch angles
     roll_osc  = np.sum(np.abs(np.diff(angles[:, 1]))) # Roll oscillation calculated as the sum of absolute differences in roll angles
     thrust_osc = np.sum(np.abs(np.diff(sim.thrust_history))) * 1e-5 # Thrust oscillation calculated as the sum of absolute differences in thrust values
@@ -168,26 +169,27 @@ def main():
     """Run the Bayesian PID gain optimization."""
     # Define the bounds for the optimization variables
     pbounds = {
-        'kp_pos': (0.5, 1), 
-        'ki_pos': (1e-6, 1), 
-        'kd_pos': (1e-4, 1),
+        'kp_pos': (1e-4, 0.8), 
+        'ki_pos': (1e-8, 1), 
+        'kd_pos': (1e-2, 10),
 
-        'kp_alt': (0.5, 1),   
-        'ki_alt': (1e-6, 1e-1),  
-        'kd_alt': (1e-6, 2),
+        'kp_alt': (0.5, 10),   
+        'ki_alt': (1e-8, 1e-3),  
+        'kd_alt': (1e-2, 10),
 
         'kp_att': (0.5, 70),     
         'ki_att': (1, 1e4),  
-        'kd_att': (1e-6, 5),
+        'kd_att': (1e-8, 5),
 
-        'kp_hsp': (1e-2, 10),
-        'ki_hsp': (1e-6, 2),
-        'kd_hsp': (1e-6, 0.1),
+        'kp_hsp': (1e-8, 1),
+        'ki_hsp': (1e-8, 1),
+        'kd_hsp': (1e-8, 1),
 
-        'kp_vsp': (1e2, 2e3),
-        'ki_vsp': (1e-6, 30),
-        'kd_vsp': (1e-6, 10)
+        'kp_vsp': (1e2, 2.5e3),
+        'ki_vsp': (1e-8, 1e-2),
+        'kd_vsp': (1, 100)
     }
+
     init_guess = {
         'kp_pos': 0.7,
         'ki_pos': 0.01,
