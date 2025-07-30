@@ -64,7 +64,9 @@ def calculate_costs(sim: Simulation, simulation_time: float,
                     completition_weight: float = 1000.0,
                     pitch_roll_oscillation_weight: float = 1.0,
                     thrust_oscillation_weight: float = 1e-5,
-                    power_weight: float = 1e-4) -> tuple:
+                    power_weight: float = 1e-4,
+                    noise_weight: float = 6e-23) -> tuple:
+    
     """Compute the cost metrics used for PID gain optimization."""
     angles = np.array(sim.angles_history)
     final_time = sim.navigation_time if sim.navigation_time is not None else simulation_time
@@ -94,13 +96,20 @@ def calculate_costs(sim: Simulation, simulation_time: float,
     completition_cost = get_completion_cost(sim, completition_weight)
 
     overshoot_cost = get_overshoot_cost(sim, overshoot_weight)
+    p = 12  # norm order for noise cost
+    if len(sim.swl_history) > 0:
+        swl = np.array(sim.swl_history, dtype=float)
+        noise_cost = noise_weight * np.linalg.norm(swl, ord=p)**p
+    else:
+        noise_cost = 0.0
 
     total_cost = time_cost + \
         final_distance_cost + \
         oscillation_cost + \
         completition_cost + \
         overshoot_cost + \
-        power_cost
+        power_cost + \
+        noise_cost
 
     if not sim.has_moved:
         total_cost += 1000
@@ -113,6 +122,7 @@ def calculate_costs(sim: Simulation, simulation_time: float,
         completition_cost,
         overshoot_cost,
         power_cost,
+        noise_cost,
         sim.current_seg_idx,
         len(sim.waypoints),
     )

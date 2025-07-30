@@ -270,7 +270,7 @@ def plotNoiseEmissionMap(sim: Simulation, window=(100, 100)):
     # Set up figure
     plt.figure(figsize=(10, 6))
 
-    colors = ['white', 'darkred', 'orange', 'red', 'darkred', 'black']
+    colors = ['white', 'orange', 'red', 'darkred', 'black']
     cmap = LinearSegmentedColormap.from_list(
         'white_yellow_red_violet_black', colors)
 

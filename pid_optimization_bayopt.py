@@ -43,6 +43,8 @@ waypoints = mainfunc.create_training_waypoints()
 
 world = World.load_world(parameters['world_data_path'])
 
+noise_model = mainfunc.load_dnn_noise_model(parameters)
+
 
 
 def simulate_pid(pid_gains):
@@ -57,7 +59,7 @@ def simulate_pid(pid_gains):
     drone = mainfunc.create_quadcopter_model(init_state=init_state, quad_controller=quad_controller, parameters=parameters)
 
     # Initialize the simulation
-    sim = mainfunc.create_simulation(drone=drone, world=world, waypoints=waypoints, parameters=parameters, noise_model=None)
+    sim = mainfunc.create_simulation(drone=drone, world=world, waypoints=waypoints, parameters=parameters, noise_model=noise_model, generate_sound_map=False)
 
     # sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed = None)
     sim.startSimulation(stop_at_target=True, verbose=False, stop_sim_if_not_moving=True, use_static_target=True)
@@ -93,9 +95,18 @@ def objective(kp_pos, ki_pos, kd_pos,
         'k_pid_hsp': (kp_hsp, ki_hsp, kd_hsp),
         'k_pid_vsp': (kp_vsp, ki_vsp, kd_vsp),
     }
-    cost, time_cost, final_distance_cost, oscillation_cost, completition_cost, overshoot_cost, power_cost, n_targets_completed, tot_targets = simulate_pid(
-        pid_gains=params
-    )
+    (
+        cost,
+        time_cost,
+        final_distance_cost,
+        oscillation_cost,
+        completition_cost,
+        overshoot_cost,
+        power_cost,
+        noise_cost,
+        n_targets_completed,
+        tot_targets
+    ) = simulate_pid(pid_gains=params)
     log_step(params, cost, log_path)
     target = -cost  # bayes_opt maximizes
 
@@ -120,7 +131,7 @@ def objective(kp_pos, ki_pos, kd_pos,
             f.write(f"target = {best_target}\n")
 
     print(f"{iteration}/{n_iter}: cost={cost:.4f}, best_cost={best_target:.4f}, time_cost={time_cost:.2f}, " + \
-           f"distance_cost={final_distance_cost:.2f}, oscillation_cost={oscillation_cost:.2f}, completition_cost={completition_cost:.2f}, overshoot_cost={overshoot_cost:.2f}, power_cost={power_cost:.2f} | completed_targets={n_targets_completed}/{tot_targets}")
+           f"distance_cost={final_distance_cost:.2f}, oscillation_cost={oscillation_cost:.2f}, completition_cost={completition_cost:.2f}, overshoot_cost={overshoot_cost:.2f}, power_cost={power_cost:.2f}, noise_cost={noise_cost:.2f} | completed_targets={n_targets_completed}/{tot_targets}")
     return target
 
 
