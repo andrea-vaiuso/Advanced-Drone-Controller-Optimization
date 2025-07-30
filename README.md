@@ -20,6 +20,9 @@ This project simulates a quadcopter with PID control to analyze how trajectory n
    pip install -r requirements.txt
    ```
 
+Configuration parameters for simulations and optimizers are stored under the
+`Settings/` directory. Adjust these YAML files to modify default behavior.
+
 ## Usage
 Run the main simulation:
 ```bash
@@ -33,7 +36,7 @@ python pid_optimization_bayopt.py
 
 Tune PID gains with Particle Swarm Optimization:
 ```bash
-python pid_optimization_PSO.py
+python pid_optimization_pso.py
 ```
 
 Edit world data using the optional GUI:
@@ -49,7 +52,7 @@ python world_creation_gui.py
 - `Rotor/` – rotor model code and pretrained weights.
 - `Noise/` – data and models for noise effects.
 - `pid_optimization_bayopt.py` – script for Bayesian PID tuning.
-- `pid_optimization_PSO.py` – script for PSO-based PID tuning.
+- `pid_optimization_pso.py` – script for PSO-based PID tuning.
 - `world_creation_gui.py` – simple GUI world editor.
 
 ## Technologies Used

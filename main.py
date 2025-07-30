@@ -14,7 +14,7 @@ def main():
     Run the drone simulation and plot the results.
     """
     # Load configuration parameters
-    parameters = load_parameters('parameters.yaml')
+    parameters = load_parameters('Settings/simulation_parameters.yaml')
 
     # # --- Define Waypoints (with desired speed) ---
     waypoints = create_training_waypoints()
