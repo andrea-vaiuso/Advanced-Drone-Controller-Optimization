@@ -7,6 +7,7 @@ import numpy as np
 from bayes_opt import BayesianOptimization
 from World import World
 import main as mainfunc
+from Simulation import Simulation
 
 from plotting_functions import plot3DAnimation
 
@@ -55,6 +56,43 @@ waypoints = mainfunc.create_training_waypoints()
 world = World.load_world(parameters['world_data_path'])
 
 
+def calculate_costs(sim: Simulation, simulation_time: float) -> tuple:
+    # Collect results
+    angles = np.array(sim.angles_history)
+    final_time = sim.navigation_time if sim.navigation_time is not None else simulation_time
+
+    final_target = {'x': sim.waypoints[-1]['x'], 'y': sim.waypoints[-1]['y'], 'z': sim.waypoints[-1]['z']}
+    final_distance = np.linalg.norm(sim.drone.state['pos'] - np.array([final_target['x'],
+                                                              final_target['y'],
+                                                              final_target['z']]))
+    
+    # Measure oscillations as the sum of all elements of the absolute difference array
+    pitch_osc = np.sum(np.abs(np.diff(angles[:, 0]))) # Pitch oscillation calculated as the sum of absolute differences in pitch angles
+    roll_osc  = np.sum(np.abs(np.diff(angles[:, 1]))) # Roll oscillation calculated as the sum of absolute differences in roll angles
+    thrust_osc = np.sum(np.abs(np.diff(sim.thrust_history))) * 1e-5 # Thrust oscillation calculated as the sum of absolute differences in thrust values
+    # rpm_1_osc = np.sum(np.abs(np.diff(sim.rpms_history[0]))) * 1e-5 # RPM oscillation calculated as the sum of absolute differences in RPM values for rotor 1
+    # rpm_2_osc = np.sum(np.abs(np.diff(sim.rpms_history[1]))) * 1e-5 # RPM oscillation calculated as the sum of absolute differences in RPM values for rotor 2
+    # rpm_3_osc = np.sum(np.abs(np.diff(sim.rpms_history[2]))) * 1e-5 # RPM oscillation calculated as the sum of absolute differences in RPM values for rotor 3
+    # rpm_4_osc = np.sum(np.abs(np.diff(sim.rpms_history[3]))) * 1e-5 # RPM oscillation calculated as the sum of absolute differences in RPM values for rotor 4
+    # rpm_tot_osc = (rpm_1_osc + rpm_2_osc + rpm_3_osc + rpm_4_osc) # Total RPM oscillation calculated as the sum of all individual RPM oscillations
+    osc_weight = 3.0
+
+    perc_completed = sim.current_seg_idx / len(sim.waypoints)
+
+    time_cost = final_time
+    final_distance_cost = final_distance ** 0.9
+    oscillation_cost = osc_weight * (pitch_osc + roll_osc + thrust_osc)
+    
+    completition_cost = 1000 * (1 - perc_completed)  # Penalize for not reaching the target
+
+    cost = time_cost + final_distance_cost + oscillation_cost + completition_cost
+
+    if not sim.has_moved: cost += 1000
+
+    return cost, time_cost, final_distance_cost, oscillation_cost, completition_cost, sim.current_seg_idx, len(sim.waypoints)
+
+
+
 def simulate_pid(pid_gains):
     """Run a simulation with the given PID gains and return the cost metrics."""
 
@@ -84,32 +122,7 @@ def simulate_pid(pid_gains):
                     # float(parameters['dt']), 
                     # int(parameters['frame_skip']))
 
-    # Collect results
-    angles = np.array(sim.angles_history)
-    final_time = sim.navigation_time if sim.navigation_time is not None else simulation_time
-    
-    final_target = {'x': waypoints[-1]['x'], 'y': waypoints[-1]['y'], 'z': waypoints[-1]['z']}
-    final_distance = np.linalg.norm(sim.drone.state['pos'] - np.array([final_target['x'],
-                                                              final_target['y'],
-                                                              final_target['z']]))
-    
-    # Measure oscillations as the sum of all elements of the absolute difference array
-    pitch_osc = np.sum(np.abs(np.diff(angles[:, 0]))) # Pitch oscillation calculated as the sum of absolute differences in pitch angles
-    roll_osc  = np.sum(np.abs(np.diff(angles[:, 1]))) # Roll oscillation calculated as the sum of absolute differences in roll angles
-    thrust_osc = np.sum(np.abs(np.diff(sim.thrust_history))) * 1e-5 # Thrust oscillation calculated as the sum of absolute differences in thrust values
-    osc_weight = 3.0
-
-    perc_completed = sim.current_seg_idx / len(sim.waypoints)
-
-    time_cost = final_time
-    final_distance_cost = final_distance ** 0.9
-    oscillation_cost = osc_weight * (pitch_osc + roll_osc + thrust_osc)
-    completition_cost = 1000 * (1 - perc_completed)  # Penalize for not reaching the target
-
-    cost = time_cost + final_distance_cost + oscillation_cost + completition_cost
-    if not sim.has_moved: cost += 1000
-
-    return cost, time_cost, final_distance_cost, oscillation_cost, completition_cost, sim.current_seg_idx, len(sim.waypoints)
+    return calculate_costs(sim, simulation_time)
 
 def objective(kp_pos, ki_pos, kd_pos,
               kp_alt, ki_alt, kd_alt,
@@ -169,47 +182,48 @@ def main():
     """Run the Bayesian PID gain optimization."""
     # Define the bounds for the optimization variables
     pbounds = {
-        'kp_pos': (1e-4, 0.8), 
-        'ki_pos': (1e-8, 1), 
-        'kd_pos': (1e-2, 10),
+        'kp_pos': (1e-4, 10), 
+        'ki_pos': (1e-10, 1), 
+        'kd_pos': (1e-5, 5),
 
-        'kp_alt': (0.5, 10),   
-        'ki_alt': (1e-8, 1e-3),  
-        'kd_alt': (1e-2, 10),
+        'kp_alt': (0.5, 50),   
+        'ki_alt': (1e-8, 10),  
+        'kd_alt': (1e-8, 10),
 
-        'kp_att': (0.5, 70),     
-        'ki_att': (1, 1e4),  
-        'kd_att': (1e-8, 5),
+        'kp_att': (0.5, 270),     
+        'ki_att': (1e-4, 50),  
+        'kd_att': (1e-10, 5),
 
-        'kp_hsp': (1e-8, 1),
-        'ki_hsp': (1e-8, 1),
-        'kd_hsp': (1e-8, 1),
+        'kp_hsp': (1e-8, 10),
+        'ki_hsp': (1e-10, 1),
+        'kd_hsp': (1e-10, 1),
 
         'kp_vsp': (1e2, 2.5e3),
-        'ki_vsp': (1e-8, 1e-2),
-        'kd_vsp': (1, 100)
+        'ki_vsp': (1e-10, 1e-2),
+        'kd_vsp': (1e-6, 50)
     }
 
+    current_best_pid_gains = mainfunc.load_pid_gains(parameters)
     init_guess = {
-        'kp_pos': 0.7,
-        'ki_pos': 0.01,
-        'kd_pos': 0.09,
+        'kp_pos': current_best_pid_gains['k_pid_pos'][0],
+        'ki_pos': current_best_pid_gains['k_pid_pos'][1],
+        'kd_pos': current_best_pid_gains['k_pid_pos'][2],
 
-        'kp_alt': 0.7,
-        'ki_alt': 0.0,
-        'kd_alt': 0.1,
+        'kp_alt': current_best_pid_gains['k_pid_alt'][0],
+        'ki_alt': current_best_pid_gains['k_pid_alt'][1],
+        'kd_alt': current_best_pid_gains['k_pid_alt'][2],
 
-        'kp_att': 20.0,
-        'ki_att': 1.0,
-        'kd_att': 0.01,
+        'kp_att': current_best_pid_gains['k_pid_att'][0],
+        'ki_att': current_best_pid_gains['k_pid_att'][1],
+        'kd_att': current_best_pid_gains['k_pid_att'][2],
 
-        'kp_hsp': 1.0,
-        'ki_hsp': 0.01,
-        'kd_hsp': 0.01,
+        'kp_hsp': current_best_pid_gains['k_pid_hsp'][0],
+        'ki_hsp': current_best_pid_gains['k_pid_hsp'][1],
+        'kd_hsp': current_best_pid_gains['k_pid_hsp'][2],
 
-        'kp_vsp': 150.0,
-        'ki_vsp': 10.0,
-        'kd_vsp': 1.0
+        'kp_vsp': current_best_pid_gains['k_pid_vsp'][0],
+        'ki_vsp': current_best_pid_gains['k_pid_vsp'][1],
+        'kd_vsp': current_best_pid_gains['k_pid_vsp'][2]
     }
 
     start_time = time()
@@ -227,7 +241,7 @@ def main():
     )
 
     optimizer.maximize(
-        init_points=50,
+        init_points=20,
         n_iter=n_iter,
     )
     tot_time = time() - start_time
@@ -243,12 +257,12 @@ def main():
         'k_pid_vsp': (best['kp_vsp'], best['ki_vsp'], best['kd_vsp']),
     }
 
-    print("k_pid_yaw = (0.5, 1e-6, 0.1)")
-    print("k_pid_pos = ({:.5g}, {:.5g}, {:.5g})".format(*best_formatted['k_pid_pos']))
-    print("k_pid_alt = ({:.5g}, {:.5g}, {:.5g})".format(*best_formatted['k_pid_alt']))
-    print("k_pid_att = ({:.5g}, {:.5g}, {:.5g})".format(*best_formatted['k_pid_att']))
-    print("k_pid_hsp = ({:.5g}, {:.5g}, {:.5g})".format(*best_formatted['k_pid_hsp']))
-    print("k_pid_vsp = ({:.5g}, {:.5g}, {:.5g})".format(*best_formatted['k_pid_vsp']))
+    print("k_pid_yaw: (0.5, 1e-6, 0.1)")
+    print("k_pid_pos: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_pos']))
+    print("k_pid_alt: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_alt']))
+    print("k_pid_att: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_att']))
+    print("k_pid_hsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_hsp']))
+    print("k_pid_vsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_vsp']))
     print("Best target value: {:.4f}".format(optimizer.max['target']))
 
     with open(opt_output_path, 'w') as f:

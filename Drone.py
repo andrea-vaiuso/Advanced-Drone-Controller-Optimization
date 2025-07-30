@@ -243,18 +243,20 @@ class QuadcopterModel:
         state_new.update(reminder_data)
         return state_new
 
-    def update_wind(self, V: float, simulate_wind=True) -> None:
+    def update_wind(self, V_components: np.array, simulate_wind=True, rpm_ref: float = 2500) -> None:
         """
         Update the wind signal for the quadcopter model.
 
         Parameters:
-            V (float): Wind speed in m/s.
+            V (np.array): Wind components in the x, y, and z directions.
             simulate_wind (bool): Whether to simulate wind effects. Default is True.
+            rpm_ref (float): Reference RPM for wind effect calculation. Default is 2500.
         """
+        V_x, V_y, V_z = V_components
         if simulate_wind: 
             theta_0 = 2 * np.pi / 180  # Initial angle in radians
-            omega = self._rpm_to_omega(2500)  # Example RPM for wind effect calculation
-            self.delta_b = (3/2) * (self.c_t / ((theta_0 * omega * self.R) + 1e-6)) * V #Need to be checked
+            omega = self._rpm_to_omega(rpm_ref)  # Example RPM for wind effect calculation
+            self.delta_b = (3/2) * (self.c_t / ((theta_0 * omega * self.R) + 1e-6)) * V_z 
         else: self.delta_b = 0.0
 
     def reset_state(self) -> None:

@@ -48,7 +48,7 @@ def main():
     # Initialize the simulation
     sim = create_simulation(drone, world, waypoints, parameters, noise_model)
 
-    # sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed = None)
+    sim.setWind(max_simulation_time=parameters['simulation_time'], dt=parameters['dt'], height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed=None)
     sim.startSimulation(stop_at_target=False, use_static_target=True, verbose=True)
 
     # Plot 3D animation of the drone's trajectory
@@ -101,6 +101,27 @@ def create_training_waypoints() -> list:
         {'x': 70.0, 'y': 70.0, 'z': 40.0, 'v': 5},   # Hovering target 2
         {'x': 80.0, 'y': 80.0, 'z': 40.0, 'v': 5},   # Hovering target 3
         {'x': 10.0, 'y': 10.0, 'z': 10.0, 'v': 5}    # Final target: near origin at low altitude
+    ]
+
+def create_random_waypoints(n: int = 10, x_range: tuple = (0, 100), y_range: tuple = (0, 100), z_range: tuple = (0, 100), v: float = 5) -> list:
+    """
+    Create a list of random waypoints for the drone.
+    
+    Parameters:
+        n (int): Number of waypoints to generate.
+        x_range (tuple): Range for x coordinates.
+        y_range (tuple): Range for y coordinates.
+        z_range (tuple): Range for z coordinates.
+        v (float): Desired speed for each waypoint.
+    
+    Returns:
+        list: List of waypoints with x, y, z coordinates and desired speed.
+    """
+    return [
+        {'x': np.random.uniform(*x_range), 
+         'y': np.random.uniform(*y_range), 
+         'z': np.random.uniform(*z_range), 
+         'v': v} for _ in range(n)
     ]
 
 def create_initial_state(x: float = 0, y: float = 0, z: float = 0) -> dict:
@@ -342,7 +363,14 @@ def generate_log_dict(sim: Simulation) -> dict:
             'label': 'SWL',
             'showgrid': True
         },
-
+        'Thrust': {
+            'data': np.array(sim.thrust_history),
+            'ylabel': 'Thrust (N)',
+            'color': 'brown',
+            'linestyle': '-',
+            'label': 'Thrust',
+            'showgrid': True
+        }
     }
 
 if __name__ == "__main__":

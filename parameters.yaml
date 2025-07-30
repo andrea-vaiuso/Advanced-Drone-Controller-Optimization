@@ -21,12 +21,19 @@ norm_params_path: "Rotor/normalization_params.pth"
 rotor_model_path: "Rotor/rotor_model.pth"
 
 # PID controller settings (yaw remain fixed)
+# k_pid_yaw: [0.5, 1e-6, 0.1]
+# k_pid_pos: [0.7, 0.01, 0.09]
+# k_pid_alt: [0.7, 0, 0.1]
+# k_pid_att: [20, 1, 0.01]
+# k_pid_hsp: [1, 0.01, 0.01]
+# k_pid_vsp: [150, 10, 1]
+
 k_pid_yaw: [0.5, 1e-6, 0.1]
-k_pid_pos: [0.7, 0.01, 0.09]
-k_pid_alt: [0.7, 0, 0.1]
-k_pid_att: [20, 1, 0.01]
-k_pid_hsp: [1, 0.01, 0.01]
-k_pid_vsp: [150, 10, 1]
+k_pid_pos: [0.8, 1e-08, 0.01]
+k_pid_alt: [10, 0.001, 0.01]
+k_pid_att: [70, 1, 1e-08]
+k_pid_hsp: [1, 1e-08, 1e-08]
+k_pid_vsp: [1067, 1e-08, 1]
 
 
 # Drone parameters

@@ -132,7 +132,10 @@ class Simulation:
                                      self.dt, verbose=False)
             # Apply wind if enabled
             if self.simulate_wind and len(self.wind_signals) >= 3:
-                self.drone.update_wind(self.wind_signals[2][step], simulate_wind=True) #Only use 'w' axis wind for vertical component
+                wind_xyz_signal = np.array([self.wind_signals[0][step],
+                                            self.wind_signals[1][step],
+                                            self.wind_signals[2][step]])
+                self.drone.update_wind(wind_xyz_signal, simulate_wind=True)
 
             current_time = step * self.dt
 

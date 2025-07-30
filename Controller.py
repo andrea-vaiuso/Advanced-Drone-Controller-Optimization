@@ -145,13 +145,15 @@ class QuadCopterController:
         # Step 1: Position controllers compute desired velocities (vx_t, vy_t)
         vx_t = self.pid_x.update(x, x_t, dt)
         vy_t = self.pid_y.update(y, y_t, dt)
-        # Clamp to maximum horizontal speed
-        vx_t = np.clip(vx_t, -desired_h_speed, desired_h_speed)
-        vy_t = np.clip(vy_t, -desired_h_speed, desired_h_speed)
+        # Compute total desired horizontal speed and clip if necessary
+        v_horiz = np.array([vx_t, vy_t])
+        norm = np.linalg.norm(v_horiz)
+        if norm > desired_h_speed and norm > 0:
+            v_horiz = v_horiz * (desired_h_speed / norm)
+        vx_t, vy_t = v_horiz[0], v_horiz[1]
         # Step 2: Speed controllers compute desired angles from velocity errors
         pitch_des = np.clip(self.pid_h_speed.update(v_x, vx_t, dt), -self.max_angle_limit_rad, self.max_angle_limit_rad)
         roll_des  = np.clip(-self.pid_h_speed.update(v_y, vy_t, dt), -self.max_angle_limit_rad, self.max_angle_limit_rad)
-        
         # Compute desired yaw based on target position
         dx = target['x'] - x
         dy = target['y'] - y
