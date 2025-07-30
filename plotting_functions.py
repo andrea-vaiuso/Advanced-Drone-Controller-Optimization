@@ -8,6 +8,8 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 from utils import euler_to_rot
+from Simulation import Simulation
+from matplotlib.colors import LinearSegmentedColormap
 
 def plotLogData(log_dict, time, waypoints=None, ncols=2):
     """
@@ -103,7 +105,6 @@ def plotLogData(log_dict, time, waypoints=None, ncols=2):
     plt.show()
 
 
-
 def saveLogData(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, spl_history, swl_history, waypoints, filename):
     """
     Save the drone simulation data to a CSV file.
@@ -134,12 +135,22 @@ def saveLogData(positions, angles_history, rpms_history, time_history, horiz_spe
     print(f"Data saved to {filename}")
 
 
-def plot3DAnimation(positions, angles_history, rpms_history, time_history, horiz_speed_history, vertical_speed_history, 
-                    targets, waypoints, start_position, dt, frame_skip,
-                    window=(100, 100, 100)):
+def plot3DAnimation(sim: Simulation, window=(100, 100, 100)):
     """
     Plot a 3D animation of the drone's trajectory and attitude over time.
     """
+    # Extract data from the simulation object
+    positions = np.array(sim.positions)
+    angles_history = np.array(sim.angles_history)
+    rpms_history = np.array(sim.rpms_history)
+    horiz_speed_history = np.array(sim.horiz_speed_history)
+    vertical_speed_history = np.array(sim.vertical_speed_history)
+    targets = np.array(sim.targets)
+    waypoints = sim.waypoints
+    start_position = sim.drone.init_state['pos']
+    dt = sim.dt
+    frame_skip = sim.frame_skip
+
     # --- Animation: 3D Trajectory of the Drone ---
     fig_anim = plt.figure(figsize=(10, 8))
     ax_anim = fig_anim.add_subplot(111, projection='3d')
@@ -233,3 +244,59 @@ def plot3DAnimation(positions, angles_history, rpms_history, time_history, horiz
                                   init_func=init_anim, interval=50, blit=False, repeat=True)
     plt.show()
 
+
+def plotNoiseEmissionMap(sim: Simulation, window=(100, 100)):
+    """
+    Plot a 2D noise emission map of the drone overlaid with its trajectory and waypoints.
+
+    Parameters:
+        sim (Simulation): Simulation object containing positions, noise map, and waypoints.
+        window (tuple): (x_max, y_max) display limits.
+    """
+    noise_emission_map = sim.noise_emission_map
+    if len(noise_emission_map) == 0:
+        print("No noise emission data available to plot.")
+        return
+
+    # Extract noise map coordinates and SPL values
+    x_coords = []
+    y_coords = []
+    spl_values = []
+    for (x, y), value in noise_emission_map.items():
+        x_coords.append(x)
+        y_coords.append(y)
+        spl_values.append(value['spl'])
+
+    # Set up figure
+    plt.figure(figsize=(10, 6))
+
+    colors = ['white', 'darkred', 'orange', 'red', 'darkred', 'black']
+    cmap = LinearSegmentedColormap.from_list(
+        'white_yellow_red_violet_black', colors)
+
+    # Plot noise emission scatter
+    scatter = plt.scatter(x_coords, y_coords, c=spl_values, cmap=cmap, marker='o', alpha=0.7)
+    plt.colorbar(scatter, label='Noise Level (dB)')
+
+    # Overlay drone trajectory
+    positions = np.array(sim.positions)
+    if positions.size > 0:
+        plt.plot(positions[:, 0], positions[:, 1], '--', lw=2, color='blue', label='Trajectory')
+
+    # Overlay waypoints
+    for i, wp in enumerate(sim.waypoints, start=1):
+        plt.scatter(wp['x'], wp['y'], marker='X', color='purple', s=100,
+                    label='Waypoint' if i == 1 else None)
+        plt.text(wp['x'], wp['y'] + 2, f'{i}', color='black', fontsize=12,
+                 ha='center', va='bottom')
+
+    # Final plot adjustments
+    plt.xlim(0, window[0])
+    plt.ylim(0, window[1])
+    plt.title('Drone Noise Emission Map with Trajectory and Waypoints')
+    plt.xlabel('X Position (m)')
+    plt.ylabel('Y Position (m)')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()

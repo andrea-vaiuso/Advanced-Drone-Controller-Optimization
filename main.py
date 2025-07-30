@@ -2,7 +2,7 @@ import numpy as np
 from Drone import QuadcopterModel
 from Controller import QuadCopterController
 from Simulation import Simulation
-from plotting_functions import plot3DAnimation, plotLogData
+from plotting_functions import plot3DAnimation, plotLogData, plotNoiseEmissionMap
 from World import World
 from Noise.DNNModel import RotorSoundModel as DNNModel
 from Noise.EmpaModel import NoiseModel as EmpaModel
@@ -17,13 +17,11 @@ def main():
     parameters = load_parameters('Settings/simulation_parameters.yaml')
 
     # # --- Define Waypoints (with desired speed) ---
-    waypoints = create_training_waypoints()
-
+    # waypoints = create_training_waypoints()
+    # Create random waypoints
+    waypoints = create_random_waypoints(n=3, x_range=(10, 90), y_range=(10, 90), z_range=(10, 100), v=5)
     # Initial drone state
     init_state = create_initial_state()
-
-    # Start position for plotting
-    start_position = init_state['pos'].copy()
 
     # Get maximum thrust from the rotor model
     thrust_max = get_max_thrust_from_rotor_model(parameters)
@@ -46,23 +44,15 @@ def main():
     # noise_model = load_empa_noise_model(parameters) # Use Empa model
 
     # Initialize the simulation
-    sim = create_simulation(drone, world, waypoints, parameters, noise_model)
+    sim = create_simulation(drone, world, waypoints, parameters, noise_model, generate_sound_map=True)
 
     sim.setWind(max_simulation_time=parameters['simulation_time'], dt=parameters['dt'], height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed=None)
-    sim.startSimulation(stop_at_target=False, use_static_target=True, verbose=True)
+    sim.startSimulation(stop_at_target=True, use_static_target=True, verbose=True)
 
     # Plot 3D animation of the drone's trajectory
-    plot3DAnimation(np.array(sim.positions), 
-                    np.array(sim.angles_history), 
-                    np.array(sim.rpms_history), 
-                    np.array(sim.time_history), 
-                    np.array(sim.horiz_speed_history), 
-                    np.array(sim.vertical_speed_history), 
-                    np.array(sim.targets), 
-                    waypoints, 
-                    start_position, 
-                    float(parameters['dt']), 
-                    int(parameters['frame_skip']))
+    plot3DAnimation(sim)
+    
+    plotNoiseEmissionMap(sim)
     
     plotLogData(
         generate_log_dict(sim),
@@ -264,7 +254,7 @@ def load_empa_noise_model(parameters) -> EmpaModel:
     noise_model.load_model(parameters['empa_model_filename'])
     return noise_model
 
-def create_simulation(drone, world, waypoints, parameters, noise_model=None) -> Simulation:
+def create_simulation(drone, world, waypoints, parameters, noise_model=None, generate_sound_map=False) -> Simulation:
     """
     Create a simulation instance with the given drone, world, and waypoints.
 
@@ -286,7 +276,8 @@ def create_simulation(drone, world, waypoints, parameters, noise_model=None) -> 
         frame_skip=int(parameters['frame_skip']),
         target_reached_threshold=float(parameters['threshold']),
         target_shift_threshold_distance=float(parameters['target_shift_threshold_distance']),
-        noise_model=noise_model  # Use DNN model
+        noise_model=noise_model,
+        generate_sound_emission_map=generate_sound_map
     )
 
 
@@ -334,7 +325,7 @@ def generate_log_dict(sim: Simulation) -> dict:
             'ylabel': 'RPM',
             'colors': ['tab:blue', 'tab:orange', 'tab:green', 'tab:red'],
             'linestyles': ['-', '--', '-.', ':'],
-            'labels': ['RPM1', 'RPM2', 'RPM3', 'RPM4']
+            'labels': ['RPM1 (FR)', 'RPM2 (RR)', 'RPM3 (RL)', 'RPM4 (FL)']
         },
         'Speeds': {
             'data': {

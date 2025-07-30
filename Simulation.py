@@ -22,7 +22,8 @@ class Simulation:
                  dt: float = 0.007, max_simulation_time: float = 200.0, frame_skip: int = 8,
                  target_reached_threshold: float = 2.0,
                  target_shift_threshold_distance: float = 5,
-                 noise_model: RotorSoundModel = None, noise_annoyance_radius: int = 100):
+                 noise_model: RotorSoundModel = None, noise_annoyance_radius: int = 30,
+                 generate_sound_emission_map: bool = False):
         """
         Initialize the simulation with the drone model, world, waypoints, and parameters.
         Parameters:
@@ -36,6 +37,7 @@ class Simulation:
             target_shift_threshold_distance (float): Distance to consider for shifting the target.
             noise_model (RotorSoundModel): Optional noise model for simulating drone noise emissions.
             noise_annoyance_radius (int): Radius around the drone to consider for noise emissions.
+            generate_sound_emission_map (bool): If True, generate a sound map of noise emissions.
 
         This simulation implements a dynamic target strategy where the drone follows a moving target
         along a path defined by waypoints. The target is computed dynamically based on the drone's position
@@ -54,6 +56,7 @@ class Simulation:
         self.target_shift_threshold_distance = target_shift_threshold_distance
         self.noise_model = noise_model
         self.noise_annoyance_radius = noise_annoyance_radius
+        
 
         # Wind simulation parameters
         self.wind_signals = []
@@ -70,8 +73,11 @@ class Simulation:
         self.spl_history = []
         self.swl_history = []
         self.thrust_history = []
+        self.power_history = []
         self.delta_b_history = []
         self.thrust_no_wind_history = []
+        self.distance_history = []
+        self.seg_idx_history = []
 
         # Simulation runtime
         self.simulation_time = 0.0
@@ -79,6 +85,9 @@ class Simulation:
         self.navigation_time = None
         self.has_moved = True
         self.has_reached_target = False
+
+        self.generate_sound_emission_map = generate_sound_emission_map
+        self.noise_emission_map = {}
 
 
     def startSimulation(self, stop_at_target: bool = True,
@@ -99,7 +108,7 @@ class Simulation:
         self.simulation_time = 0.0
         
         # Clear previous histories
-        self.clear_histories()
+        self._clear_histories()
 
         # Reset drone state to initial conditions
         self.drone.reset_state() 
@@ -121,10 +130,10 @@ class Simulation:
         # Main simulation loop
         for step in range(num_steps):
             if use_static_target:
-                target_dynamic, self.current_seg_idx, seg_end = self.compute_static_target(
+                target_dynamic, self.current_seg_idx, seg_end = self._compute_static_target(
                     self.current_seg_idx, seg_end)
             else:
-                target_dynamic, self.current_seg_idx, seg_start, seg_end, v_des = self.compute_dynamic_target(
+                target_dynamic, self.current_seg_idx, seg_start, seg_end, v_des = self._compute_dynamic_target(
                     self.current_seg_idx, seg_start, seg_end, v_des, k_lookahead)
 
             # Update drone state
@@ -141,10 +150,10 @@ class Simulation:
 
             # Store data at specified intervals
             if step % self.frame_skip == 0:
-                self.store_log_data(current_time, target_dynamic)
+                self._store_log_data(current_time, target_dynamic)
 
                 if self.noise_model:
-                    self.compute_noise_emissions()
+                    self._compute_noise_emissions()
             
 
             # Check for final target reached only if all the other waypoints have been reached
@@ -210,7 +219,7 @@ class Simulation:
 
         self.simulate_wind = True
 
-    def _compute_moving_target(self, seg_start: np.ndarray,
+    def _get_dynamic_target_position(self, seg_start: np.ndarray,
                                seg_end: np.ndarray, v_des: float,
                                k: float = 1.0) -> tuple:
         """
@@ -252,7 +261,7 @@ class Simulation:
         distance = np.linalg.norm(drone_pos - seg_end)
         return target, distance
 
-    def compute_dynamic_target(self, current_seg_idx: int,
+    def _compute_dynamic_target(self, current_seg_idx: int,
                                seg_start: np.ndarray,
                                seg_end: np.ndarray,
                                v_des: float,
@@ -276,7 +285,7 @@ class Simulation:
             ``(target, current_seg_idx, seg_start, seg_end, v_des)`` with the
             new target and updated segment information.
         """
-        target, distance = self._compute_moving_target(
+        target, distance = self._get_dynamic_target_position(
             seg_start, seg_end, v_des, k=k_lookahead)
 
         if distance <= self.target_shift_threshold_distance:
@@ -289,7 +298,7 @@ class Simulation:
                     self.waypoints[current_seg_idx]['z']
                 ])
                 v_des = self.waypoints[current_seg_idx]['v']
-                target, _ = self._compute_moving_target(
+                target, _ = self._get_dynamic_target_position(
                     seg_start, seg_end, v_des, k=k_lookahead)
             else:
                 target = seg_end
@@ -297,7 +306,7 @@ class Simulation:
 
         return target, current_seg_idx, seg_start, seg_end, v_des
 
-    def compute_static_target(self, current_seg_idx: int,
+    def _compute_static_target(self, current_seg_idx: int,
                               seg_end: np.ndarray) -> tuple:
         """Return a static target positioned at the next waypoint.
 
@@ -332,7 +341,7 @@ class Simulation:
 
         return seg_end, current_seg_idx, seg_end
     
-    def clear_histories(self):
+    def _clear_histories(self):
         """
         Clear all histories collected during the simulation.
         This method resets all data collections to empty lists.
@@ -344,13 +353,24 @@ class Simulation:
         self.horiz_speed_history.clear()
         self.vertical_speed_history.clear()
         self.targets.clear()
+        self.power_history.clear()
         self.spl_history.clear()
         self.swl_history.clear()
         self.thrust_history.clear()
         self.delta_b_history.clear()
         self.thrust_no_wind_history.clear()
+        self.distance_history.clear()
+        self.seg_idx_history.clear()
 
-    def store_log_data(self, current_time, target_dynamic):
+        self.has_moved = True
+        self.has_reached_target = False
+        self.navigation_time = None
+        self.simulation_time = 0.0
+        self.current_seg_idx = 0
+
+        self.noise_emission_map.clear()
+
+    def _store_log_data(self, current_time, target_dynamic):
         """
         Store log data for the current simulation step.
         """
@@ -364,8 +384,15 @@ class Simulation:
         self.thrust_history.append(self.drone.thrust)
         self.delta_b_history.append(self.drone.delta_b)
         self.thrust_no_wind_history.append(self.drone.thrust_no_wind)
+        self.power_history.append(np.sum(self.drone.state['power']))
 
-    def compute_noise_emissions(self):
+        idx = min(self.current_seg_idx, len(self.waypoints)-1)
+        wp = self.waypoints[idx]
+        dist = np.linalg.norm(self.drone.state['pos'] - np.array([wp['x'], wp['y'], wp['z']]))
+        self.distance_history.append(dist)
+        self.seg_idx_history.append(self.current_seg_idx)
+
+    def _compute_noise_emissions(self):
         # Compute noise emissions around the drone
         avg_spl = 0.0
         avg_swl = 0.0
@@ -384,6 +411,14 @@ class Simulation:
                 zeta_angle=zeta, rpms=self.drone.state['rpm'], distance=dist)
             avg_spl += spl
             avg_swl += swl
+
+            if self.generate_sound_emission_map:
+                self.noise_emission_map[x_a, y_a] = {
+                    'spl': self.noise_emission_map[x_a, y_a]['spl'] + spl if (x_a, y_a) in self.noise_emission_map else spl,
+                    'swl': self.noise_emission_map[x_a, y_a]['swl'] + swl if (x_a, y_a) in self.noise_emission_map else swl,
+                }
+
         count = len(areas) if areas else 1
         self.spl_history.append(avg_spl / count)
         self.swl_history.append(avg_swl / count)
+

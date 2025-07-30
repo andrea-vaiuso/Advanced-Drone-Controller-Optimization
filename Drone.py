@@ -134,6 +134,7 @@ class QuadcopterModel:
         u_2 = self.l * (state['thrust'][3] - state['thrust'][1])
         u_3 = self.l * (state['thrust'][2] - state['thrust'][0])
         u_4 = state['torque'][0] - state['torque'][1] + state['torque'][2] - state['torque'][3]
+
         Omega_r = (omega[0] - omega[1] + omega[2] - omega[3])
         Omega_r_J_r = self.Jr * Omega_r 
 

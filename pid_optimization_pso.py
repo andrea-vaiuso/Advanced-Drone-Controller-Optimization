@@ -21,9 +21,11 @@ def simulate_pid(pid_gains, parameters, waypoints, world, thrust_max, simulation
                                                             pid_gains=pid_gains,
                                                             t_max=thrust_max,
                                                             parameters=parameters)
+    
     drone = mainfunc.create_quadcopter_model(init_state=init_state,
                                              quad_controller=quad_controller,
                                              parameters=parameters)
+    
     sim = mainfunc.create_simulation(drone=drone,
                                      world=world,
                                      waypoints=waypoints,
@@ -76,8 +78,8 @@ def main():
     pbounds_cfg = pso_cfg.get('pbounds', {})
     pbounds = {k: tuple(v) for k, v in pbounds_cfg.items()}
 
-    lower_bounds = np.array([v[0] for v in pbounds.values()])
-    upper_bounds = np.array([v[1] for v in pbounds.values()])
+    lower_bounds = np.array([v[0] for v in pbounds.values()], dtype=float)
+    upper_bounds = np.array([v[1] for v in pbounds.values()], dtype=float)
     dim = len(lower_bounds)
 
     rng = np.random.default_rng(42)
@@ -101,6 +103,9 @@ def main():
     global_best_cost = np.inf
 
     start_opt = time()
+    print("Starting Particle Swarm Optimization...")
+
+    # Main optimization loop
     for gen in range(n_iter):
         for i in range(swarm_size):
             gains = decode_particle(particles_pos[i])

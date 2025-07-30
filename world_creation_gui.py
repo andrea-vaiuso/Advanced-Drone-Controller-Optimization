@@ -2,12 +2,12 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
 import pickle
-from Entity.World import World
+from World import World
 
 class WorldEditor:
     def __init__(self, root, world):
         self.root = root
-        self.world = world
+        self.world: World = world
         self.selected_area = None
         self.rectangles = []
         self.start_x = None
@@ -93,16 +93,38 @@ class WorldEditor:
         messagebox.showinfo("Saved", "World saved successfully!")
 
 if __name__ == "__main__":
-    max_world_size = 1000
-    grid_size = 10
+    # Dialog to get max_world_size and grid_size
+    def get_world_params():
+        param_win = tk.Tk()
+        param_win.title("World Parameters")
+        tk.Label(param_win, text="Max World Size:").grid(row=0, column=0, padx=5, pady=5)
+        tk.Label(param_win, text="Grid Size:").grid(row=1, column=0, padx=5, pady=5)
+        max_size_var = tk.StringVar(value="100")
+        grid_size_var = tk.StringVar(value="1")
+        tk.Entry(param_win, textvariable=max_size_var).grid(row=0, column=1, padx=5, pady=5)
+        tk.Entry(param_win, textvariable=grid_size_var).grid(row=1, column=1, padx=5, pady=5)
+        result = {}
+
+        def submit():
+            try:
+                result['max_world_size'] = int(max_size_var.get())
+                result['grid_size'] = int(grid_size_var.get())
+                param_win.destroy()
+            except ValueError:
+                messagebox.showerror("Error", "Please enter valid integer values.")
+
+        tk.Button(param_win, text="OK", command=submit).grid(row=2, column=0, columnspan=2, pady=10)
+        param_win.mainloop()
+        return result.get('max_world_size', 100), result.get('grid_size', 1)
+
+    max_world_size, grid_size = get_world_params()
     root = tk.Tk()
     root.title("World Editor")
-    
+
     image_path = filedialog.askopenfilename(title="Select Background Image", filetypes=[("Image Files", "*.png;*.jpg;*.jpeg")])
     if not image_path:
-        messagebox.showerror("Error", "No image selected. Exiting...")
-        root.destroy()
+        world = World(grid_size=grid_size, max_world_size=max_world_size, world_name="Winterthur Area", background_image_path=None)
     else:
         world = World(grid_size=grid_size, max_world_size=max_world_size, world_name="Winterthur Area", background_image_path=image_path)
-        app = WorldEditor(root, world)
-        root.mainloop()
+    app = WorldEditor(root, world)
+    root.mainloop()

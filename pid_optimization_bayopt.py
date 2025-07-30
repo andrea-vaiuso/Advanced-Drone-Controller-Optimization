@@ -93,7 +93,7 @@ def objective(kp_pos, ki_pos, kd_pos,
         'k_pid_hsp': (kp_hsp, ki_hsp, kd_hsp),
         'k_pid_vsp': (kp_vsp, ki_vsp, kd_vsp),
     }
-    cost, time_cost, final_distance_cost, oscillation_cost, completition_cost, n_targets_completed, tot_targets = simulate_pid(
+    cost, time_cost, final_distance_cost, oscillation_cost, completition_cost, overshoot_cost, power_cost, n_targets_completed, tot_targets = simulate_pid(
         pid_gains=params
     )
     log_step(params, cost, log_path)
@@ -120,7 +120,7 @@ def objective(kp_pos, ki_pos, kd_pos,
             f.write(f"target = {best_target}\n")
 
     print(f"{iteration}/{n_iter}: cost={cost:.4f}, best_cost={best_target:.4f}, time_cost={time_cost:.2f}, " + \
-           f"distance_cost={final_distance_cost:.2f}, oscillation_cost={oscillation_cost:.2f}, completition_cost={completition_cost:.2f} | completed_targets={n_targets_completed}/{tot_targets}")
+           f"distance_cost={final_distance_cost:.2f}, oscillation_cost={oscillation_cost:.2f}, completition_cost={completition_cost:.2f}, overshoot_cost={overshoot_cost:.2f}, power_cost={power_cost:.2f} | completed_targets={n_targets_completed}/{tot_targets}")
     return target
 
 
