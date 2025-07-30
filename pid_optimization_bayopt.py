@@ -2,6 +2,7 @@ import json
 import os
 from datetime import datetime
 from time import time
+import yaml
 
 import numpy as np
 from bayes_opt import BayesianOptimization
@@ -10,14 +11,20 @@ import main as mainfunc
 from Simulation import Simulation
 
 from plotting_functions import plot3DAnimation
+import opt_func
+from opt_func import log_step, calculate_costs, seconds_to_hhmmss
 
-# Optimization parameters
+# Optimization parameters loaded from YAML
+with open(os.path.join('Settings', 'bay_opt.yaml'), 'r') as f:
+    bayopt_cfg = yaml.safe_load(f)
+
 iteration = 0
-n_iter = 1500
+n_iter = int(bayopt_cfg.get('n_iter', 1500))
 costs = []
 best_target = -float('inf')
 best_params = None
-simulation_time = 150.0
+simulation_time = float(bayopt_cfg.get('simulation_time', 150))
+init_points = int(bayopt_cfg.get('init_points', 20))
 
 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
 base_dir = os.path.join('Optimizations', 'Bayesian', timestamp)
@@ -26,70 +33,15 @@ os.makedirs(base_dir, exist_ok=True)
 opt_output_path = os.path.join(base_dir, 'best_parameters.txt')
 log_path = os.path.join(base_dir, 'optimization_log.json')
 
-start_time = time()
-last_time = start_time
+# initialize logging timers in opt_func
+opt_func.start_time = time()
+opt_func.last_time = opt_func.start_time
 
-
-def log_step(params: dict, cost: float) -> None:
-    """Append a single optimization step to the JSON log file."""
-    global last_time
-    current = time()
-    entry = {
-        'target': -cost,
-        'params': {k: ([float(x) for x in v] if isinstance(v, (list, tuple)) else float(v))
-                   for k, v in params.items()},
-        'datetime': {
-            'datetime': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            'elapsed': current - start_time,
-            'delta': current - last_time,
-        },
-    }
-    with open(log_path, 'a') as f:
-        json.dump(entry, f)
-        f.write('\n')
-    last_time = current
-
-parameters = mainfunc.load_parameters("parameters.yaml")
+parameters = mainfunc.load_parameters("Settings/simulation_parameters.yaml")
 thrust_max = mainfunc.get_max_thrust_from_rotor_model(parameters)
 waypoints = mainfunc.create_training_waypoints()
 
 world = World.load_world(parameters['world_data_path'])
-
-
-def calculate_costs(sim: Simulation, simulation_time: float) -> tuple:
-    # Collect results
-    angles = np.array(sim.angles_history)
-    final_time = sim.navigation_time if sim.navigation_time is not None else simulation_time
-
-    final_target = {'x': sim.waypoints[-1]['x'], 'y': sim.waypoints[-1]['y'], 'z': sim.waypoints[-1]['z']}
-    final_distance = np.linalg.norm(sim.drone.state['pos'] - np.array([final_target['x'],
-                                                              final_target['y'],
-                                                              final_target['z']]))
-    
-    # Measure oscillations as the sum of all elements of the absolute difference array
-    pitch_osc = np.sum(np.abs(np.diff(angles[:, 0]))) # Pitch oscillation calculated as the sum of absolute differences in pitch angles
-    roll_osc  = np.sum(np.abs(np.diff(angles[:, 1]))) # Roll oscillation calculated as the sum of absolute differences in roll angles
-    thrust_osc = np.sum(np.abs(np.diff(sim.thrust_history))) * 1e-5 # Thrust oscillation calculated as the sum of absolute differences in thrust values
-    # rpm_1_osc = np.sum(np.abs(np.diff(sim.rpms_history[0]))) * 1e-5 # RPM oscillation calculated as the sum of absolute differences in RPM values for rotor 1
-    # rpm_2_osc = np.sum(np.abs(np.diff(sim.rpms_history[1]))) * 1e-5 # RPM oscillation calculated as the sum of absolute differences in RPM values for rotor 2
-    # rpm_3_osc = np.sum(np.abs(np.diff(sim.rpms_history[2]))) * 1e-5 # RPM oscillation calculated as the sum of absolute differences in RPM values for rotor 3
-    # rpm_4_osc = np.sum(np.abs(np.diff(sim.rpms_history[3]))) * 1e-5 # RPM oscillation calculated as the sum of absolute differences in RPM values for rotor 4
-    # rpm_tot_osc = (rpm_1_osc + rpm_2_osc + rpm_3_osc + rpm_4_osc) # Total RPM oscillation calculated as the sum of all individual RPM oscillations
-    osc_weight = 3.0
-
-    perc_completed = sim.current_seg_idx / len(sim.waypoints)
-
-    time_cost = final_time
-    final_distance_cost = final_distance ** 0.9
-    oscillation_cost = osc_weight * (pitch_osc + roll_osc + thrust_osc)
-    
-    completition_cost = 1000 * (1 - perc_completed)  # Penalize for not reaching the target
-
-    cost = time_cost + final_distance_cost + oscillation_cost + completition_cost
-
-    if not sim.has_moved: cost += 1000
-
-    return cost, time_cost, final_distance_cost, oscillation_cost, completition_cost, sim.current_seg_idx, len(sim.waypoints)
 
 
 
@@ -144,7 +96,7 @@ def objective(kp_pos, ki_pos, kd_pos,
     cost, time_cost, final_distance_cost, oscillation_cost, completition_cost, n_targets_completed, tot_targets = simulate_pid(
         pid_gains=params
     )
-    log_step(params, cost)
+    log_step(params, cost, log_path)
     target = -cost  # bayes_opt maximizes
 
     # If this target is better than the best so far, update the file
@@ -171,37 +123,12 @@ def objective(kp_pos, ki_pos, kd_pos,
            f"distance_cost={final_distance_cost:.2f}, oscillation_cost={oscillation_cost:.2f}, completition_cost={completition_cost:.2f} | completed_targets={n_targets_completed}/{tot_targets}")
     return target
 
-def seconds_to_hhmmss(seconds):
-    """Convert seconds to a ``HH:MM:SS`` formatted string."""
-    hours = int(seconds // 3600)
-    minutes = int((seconds % 3600) // 60)
-    secs = int(seconds % 60)
-    return f"{hours:02}:{minutes:02}:{secs:02}"
 
 def main():
     """Run the Bayesian PID gain optimization."""
-    # Define the bounds for the optimization variables
-    pbounds = {
-        'kp_pos': (1e-4, 10), 
-        'ki_pos': (1e-10, 1), 
-        'kd_pos': (1e-5, 5),
-
-        'kp_alt': (0.5, 50),   
-        'ki_alt': (1e-8, 10),  
-        'kd_alt': (1e-8, 10),
-
-        'kp_att': (0.5, 270),     
-        'ki_att': (1e-4, 50),  
-        'kd_att': (1e-10, 5),
-
-        'kp_hsp': (1e-8, 10),
-        'ki_hsp': (1e-10, 1),
-        'kd_hsp': (1e-10, 1),
-
-        'kp_vsp': (1e2, 2.5e3),
-        'ki_vsp': (1e-10, 1e-2),
-        'kd_vsp': (1e-6, 50)
-    }
+    # Load search bounds from configuration
+    pbounds_cfg = bayopt_cfg.get('pbounds', {})
+    pbounds = {k: tuple(v) for k, v in pbounds_cfg.items()}
 
     current_best_pid_gains = mainfunc.load_pid_gains(parameters)
     init_guess = {
@@ -241,7 +168,7 @@ def main():
     )
 
     optimizer.maximize(
-        init_points=20,
+        init_points=init_points,
         n_iter=n_iter,
     )
     tot_time = time() - start_time
