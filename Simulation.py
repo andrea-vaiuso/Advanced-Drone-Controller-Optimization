@@ -1,6 +1,6 @@
 # Author: Andrea Vaiuso
-# Version: 2.1
-# Date: 28.07.2025
+# Version: 2.2
+# Date: 31.07.2025
 # Description: This module defines the Simulation class for simulating a drone's flight path with dynamic targets,
 # wind effects, and noise emissions. It includes methods for setting wind conditions, computing dynamic targets,
 # and running the simulation with data collection.

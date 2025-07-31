@@ -1,3 +1,9 @@
+# Author: Andrea Vaiuso
+# Version: 2.1
+# Date: 31.07.2025
+# Description: This module implements Bayesian Optimization for PID gain tuning of a drone controller.
+
+
 import json
 import os
 from datetime import datetime
@@ -21,6 +27,7 @@ with open(os.path.join('Settings', 'bay_opt.yaml'), 'r') as f:
 iteration = 0
 n_iter = int(bayopt_cfg.get('n_iter', 1500))
 costs = []
+best_costs = []
 best_target = -float('inf')
 best_params = None
 simulation_time = float(bayopt_cfg.get('simulation_time', 150))
@@ -134,6 +141,7 @@ def objective(kp_pos, ki_pos, kd_pos,
     print(f"{iteration}/{n_iter}: cost={total_cost:.4f}, best_cost={best_target:.4f}, time_cost={time_cost:.2f}, " + \
            f"distance_cost={final_distance_cost:.2f}, oscillation_cost={oscillation_cost:.2f}, completition_cost={completition_cost:.2f}, overshoot_cost={overshoot_cost:.2f}, power_cost={power_cost:.2f}, noise_cost={noise_cost:.2f} | completed_targets={n_waypoints_completed}/{tot_waypoints}")
     costs.append(total_cost)
+    best_costs.append(best_target)
     return target
 
 
@@ -184,39 +192,41 @@ def main():
             init_points=init_points,
             n_iter=n_iter,
         )
-        tot_time = time() - start_time
+        
     except KeyboardInterrupt:
         print("Optimization interrupted by user.")
+    finally:
+        tot_time = time() - start_time
+        print("Best parameters found:")
+        best = optimizer.max['params']
+        best_formatted = {
+            'k_pid_pos': (best['kp_pos'], best['ki_pos'], best['kd_pos']),
+            'k_pid_alt': (best['kp_alt'], best['ki_alt'], best['kd_alt']),
+            'k_pid_att': (best['kp_att'], best['ki_att'], best['kd_att']),
+            'k_pid_yaw': (0.5, 1e-6, 0.1),
+            'k_pid_hsp': (best['kp_hsp'], best['ki_hsp'], best['kd_hsp']),
+            'k_pid_vsp': (best['kp_vsp'], best['ki_vsp'], best['kd_vsp']),
+        }
 
-    print("Best parameters found:")
-    best = optimizer.max['params']
-    best_formatted = {
-        'k_pid_pos': (best['kp_pos'], best['ki_pos'], best['kd_pos']),
-        'k_pid_alt': (best['kp_alt'], best['ki_alt'], best['kd_alt']),
-        'k_pid_att': (best['kp_att'], best['ki_att'], best['kd_att']),
-        'k_pid_yaw': (0.5, 1e-6, 0.1),
-        'k_pid_hsp': (best['kp_hsp'], best['ki_hsp'], best['kd_hsp']),
-        'k_pid_vsp': (best['kp_vsp'], best['ki_vsp'], best['kd_vsp']),
-    }
+        print("k_pid_yaw: (0.5, 1e-6, 0.1)")
+        print("k_pid_pos: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_pos']))
+        print("k_pid_alt: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_alt']))
+        print("k_pid_att: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_att']))
+        print("k_pid_hsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_hsp']))
+        print("k_pid_vsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_vsp']))
+        print("Best target value: {:.4f}".format(optimizer.max['target']))
 
-    print("k_pid_yaw: (0.5, 1e-6, 0.1)")
-    print("k_pid_pos: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_pos']))
-    print("k_pid_alt: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_alt']))
-    print("k_pid_att: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_att']))
-    print("k_pid_hsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_hsp']))
-    print("k_pid_vsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_vsp']))
-    print("Best target value: {:.4f}".format(optimizer.max['target']))
+        with open(opt_output_path, 'w') as f:
+            f.write("Best parameters found:\n")
+            for k, v in best_formatted.items():
+                f.write(f"{k}: {v}\n")
+            f.write(f"Best target value: {optimizer.max['target']}\n")
+            f.write(f"Total optimization time: {seconds_to_hhmmss(tot_time)}\n")
+            f.write(f"N iterations: {n_iter}\n")
+            f.write(f"Max sim time: {simulation_time:.2f} seconds\n")
 
-    with open(opt_output_path, 'w') as f:
-        f.write("Best parameters found:\n")
-        for k, v in best_formatted.items():
-            f.write(f"{k}: {v}\n")
-        f.write(f"Best target value: {optimizer.max['target']}\n")
-        f.write(f"Total optimization time: {seconds_to_hhmmss(tot_time)}\n")
-        f.write(f"N iterations: {n_iter}\n")
-        f.write(f"Max sim time: {simulation_time:.2f} seconds\n")
-
-    plot_costs_trend(costs, save_path=opt_output_path.replace(".txt", "_costs.png"))
+        plot_costs_trend(costs, save_path=opt_output_path.replace(".txt", "_costs.png"))
+        plot_costs_trend(best_costs, save_path=opt_output_path.replace(".txt", "_best_costs.png"))
 
 if __name__ == "__main__":
     main()

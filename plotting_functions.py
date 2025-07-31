@@ -1,6 +1,6 @@
 # Author: Andrea Vaiuso
-# Version: 2.0
-# Date: 15.07.2025
+# Version: 2.1
+# Date: 31.07.2025
 # Description: This module provides functions for plotting simulation data, saving log data to CSV,
 # and creating 3D animations of a drone's trajectory and attitude over time.
 
