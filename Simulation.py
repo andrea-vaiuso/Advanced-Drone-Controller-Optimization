@@ -396,6 +396,7 @@ class Simulation:
 
     def _compute_noise_emissions(self):
         # Compute noise emissions around the drone
+        sampling_rate_factor = self.dt * self.frame_skip
         avg_spl = 0.0
         avg_swl = 0.0
         x_d, y_d, z_d = self.drone.state['pos']
@@ -416,8 +417,8 @@ class Simulation:
 
             if self.generate_sound_emission_map:
                 self.noise_emission_map[x_a, y_a] = {
-                    'spl': self.noise_emission_map[x_a, y_a]['spl'] + spl if (x_a, y_a) in self.noise_emission_map else spl,
-                    'swl': self.noise_emission_map[x_a, y_a]['swl'] + swl if (x_a, y_a) in self.noise_emission_map else swl,
+                    'spl': self.noise_emission_map[x_a, y_a]['spl'] + spl * sampling_rate_factor if (x_a, y_a) in self.noise_emission_map else spl * sampling_rate_factor,
+                    'swl': self.noise_emission_map[x_a, y_a]['swl'] + swl * sampling_rate_factor if (x_a, y_a) in self.noise_emission_map else swl * sampling_rate_factor,
                 }
 
         count = len(areas) if areas else 1

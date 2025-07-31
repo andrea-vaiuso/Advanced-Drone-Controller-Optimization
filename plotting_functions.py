@@ -266,7 +266,7 @@ def plotNoiseEmissionMap(sim: Simulation, window=(100, 100), upper_limit=None):
     for (x, y), value in noise_emission_map.items():
         x_coords.append(x)
         y_coords.append(y)
-        spl_values.append(value['spl'])
+        spl_values.append(value['spl'] / sim.simulation_time)
 
     # Set up figure
     plt.figure(figsize=(10, 6))
@@ -279,7 +279,7 @@ def plotNoiseEmissionMap(sim: Simulation, window=(100, 100), upper_limit=None):
     scatter = plt.scatter(x_coords, y_coords, c=spl_values, cmap=cmap, marker='o', alpha=0.7)
     if upper_limit is not None:
         scatter.set_clim(0, upper_limit)
-    plt.colorbar(scatter, label='Noise Level (dB)')
+    plt.colorbar(scatter, label='Noise Level (dB / s) per second',)
 
     # Overlay drone trajectory
     positions = np.array(sim.positions)
@@ -320,7 +320,7 @@ def plotNoiseEmissionHistogram(sims: list, bins=50, upper_limit=None):
     # Extract SPL values from each simulation's noise emission map
     all_spl_data = []
     for idx, sim in enumerate(sims):
-        spl_vals = [v['spl'] for v in sim.noise_emission_map.values()]
+        spl_vals = [v['spl'] / sim.simulation_time for v in sim.noise_emission_map.values()]
         all_spl_data.append(spl_vals)
 
     # Check for data
@@ -348,7 +348,7 @@ def plotNoiseEmissionHistogram(sims: list, bins=50, upper_limit=None):
         plt.bar(centers + offset, counts, width=width, alpha=0.7, label=f'Simulation {i + 1}')
 
     # Final plot adjustments
-    plt.xlabel('Noise Level (dB)')
+    plt.xlabel('Noise Level per second (dB / s)')
     plt.ylabel('Count')
     if upper_limit is not None:
         plt.xlim(0, upper_limit)
