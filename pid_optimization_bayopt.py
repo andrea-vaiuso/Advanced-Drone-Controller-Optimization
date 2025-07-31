@@ -12,7 +12,7 @@ from Simulation import Simulation
 
 from plotting_functions import plot3DAnimation
 import opt_func
-from opt_func import log_step, calculate_costs, seconds_to_hhmmss
+from opt_func import log_step, calculate_costs, seconds_to_hhmmss, plot_costs_trend
 
 # Optimization parameters loaded from YAML
 with open(os.path.join('Settings', 'bay_opt.yaml'), 'r') as f:
@@ -95,20 +95,21 @@ def objective(kp_pos, ki_pos, kd_pos,
         'k_pid_hsp': (kp_hsp, ki_hsp, kd_hsp),
         'k_pid_vsp': (kp_vsp, ki_vsp, kd_vsp),
     }
-    (
-        cost,
-        time_cost,
-        final_distance_cost,
-        oscillation_cost,
-        completition_cost,
-        overshoot_cost,
-        power_cost,
-        noise_cost,
-        n_targets_completed,
-        tot_targets
-    ) = simulate_pid(pid_gains=params)
-    log_step(params, cost, log_path)
-    target = -cost  # bayes_opt maximizes
+    sim_costs = simulate_pid(pid_gains=params)
+
+    total_cost = sim_costs['total_cost']
+    time_cost = sim_costs['time_cost']
+    final_distance_cost = sim_costs['final_distance_cost']
+    oscillation_cost = sim_costs['oscillation_cost']
+    completition_cost = sim_costs['completition_cost']
+    overshoot_cost = sim_costs['overshoot_cost']
+    power_cost = sim_costs['power_cost']
+    noise_cost = sim_costs['noise_cost']
+    n_waypoints_completed = sim_costs['n_waypoints_completed']
+    tot_waypoints = sim_costs['tot_waypoints']
+
+    log_step(params, total_cost, log_path)
+    target = -total_cost  # bayes_opt maximizes
 
     # If this target is better than the best so far, update the file
     if target > best_target:
@@ -121,7 +122,7 @@ def objective(kp_pos, ki_pos, kd_pos,
             'k_pid_hsp': (kp_hsp, ki_hsp, kd_hsp),
             'k_pid_vsp': (kp_vsp, ki_vsp, kd_vsp),
             'final_time': time_cost,
-            'cost': cost,
+            'cost': total_cost,
         }
         # write to file
         with open("opt_temp.txt", 'w') as f:
@@ -130,8 +131,9 @@ def objective(kp_pos, ki_pos, kd_pos,
                 f.write(f"{k}: {v}\n")
             f.write(f"target = {best_target}\n")
 
-    print(f"{iteration}/{n_iter}: cost={cost:.4f}, best_cost={best_target:.4f}, time_cost={time_cost:.2f}, " + \
-           f"distance_cost={final_distance_cost:.2f}, oscillation_cost={oscillation_cost:.2f}, completition_cost={completition_cost:.2f}, overshoot_cost={overshoot_cost:.2f}, power_cost={power_cost:.2f}, noise_cost={noise_cost:.2f} | completed_targets={n_targets_completed}/{tot_targets}")
+    print(f"{iteration}/{n_iter}: cost={total_cost:.4f}, best_cost={best_target:.4f}, time_cost={time_cost:.2f}, " + \
+           f"distance_cost={final_distance_cost:.2f}, oscillation_cost={oscillation_cost:.2f}, completition_cost={completition_cost:.2f}, overshoot_cost={overshoot_cost:.2f}, power_cost={power_cost:.2f}, noise_cost={noise_cost:.2f} | completed_targets={n_waypoints_completed}/{tot_waypoints}")
+    costs.append(total_cost)
     return target
 
 
@@ -166,24 +168,26 @@ def main():
 
     start_time = time()
     print("Starting optimization...")
+    try:
+        optimizer = BayesianOptimization(
+            f=objective,
+            pbounds=pbounds,
+            random_state=42,
+        )
 
-    optimizer = BayesianOptimization(
-        f=objective,
-        pbounds=pbounds,
-        random_state=42,
-    )
+        optimizer.probe(
+            params=init_guess,
+            lazy=True,
+        )
 
-    optimizer.probe(
-        params=init_guess,
-        lazy=True,
-    )
+        optimizer.maximize(
+            init_points=init_points,
+            n_iter=n_iter,
+        )
+        tot_time = time() - start_time
+    except KeyboardInterrupt:
+        print("Optimization interrupted by user.")
 
-    optimizer.maximize(
-        init_points=init_points,
-        n_iter=n_iter,
-    )
-    tot_time = time() - start_time
-    print(f"Optimization completed in {tot_time:.2f} seconds.")
     print("Best parameters found:")
     best = optimizer.max['params']
     best_formatted = {
@@ -211,6 +215,8 @@ def main():
         f.write(f"Total optimization time: {seconds_to_hhmmss(tot_time)}\n")
         f.write(f"N iterations: {n_iter}\n")
         f.write(f"Max sim time: {simulation_time:.2f} seconds\n")
+
+    plot_costs_trend(costs, save_path=opt_output_path.replace(".txt", "_costs.png"))
 
 if __name__ == "__main__":
     main()

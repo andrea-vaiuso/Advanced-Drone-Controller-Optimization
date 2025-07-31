@@ -135,17 +135,19 @@ class Simulation:
             else:
                 target_dynamic, self.current_seg_idx, seg_start, seg_end, v_des = self._compute_dynamic_target(
                     self.current_seg_idx, seg_start, seg_end, v_des, k_lookahead)
-
-            # Update drone state
-            self.drone.update_state({'x': target_dynamic[0], 'y': target_dynamic[1], 'z': target_dynamic[2]},
-                                     self.dt, verbose=False)
-            # Apply wind if enabled
+            
+            # Update wind if set
             if self.simulate_wind and len(self.wind_signals) >= 3:
                 wind_xyz_signal = np.array([self.wind_signals[0][step],
                                             self.wind_signals[1][step],
                                             self.wind_signals[2][step]])
                 self.drone.update_wind(wind_xyz_signal, simulate_wind=True)
 
+            # Update drone state
+            self.drone.update_state({'x': target_dynamic[0], 'y': target_dynamic[1], 'z': target_dynamic[2]},
+                                     self.dt, verbose=False)
+
+            
             current_time = step * self.dt
 
             # Store data at specified intervals

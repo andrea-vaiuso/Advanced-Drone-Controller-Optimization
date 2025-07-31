@@ -11,7 +11,9 @@ import main as mainfunc
 from Simulation import Simulation
 
 import opt_func
-from opt_func import log_step, calculate_costs, seconds_to_hhmmss
+from opt_func import log_step, calculate_costs, seconds_to_hhmmss, plot_costs_trend
+
+costs = []
 
 
 def simulate_pid(pid_gains, parameters, waypoints, world, thrust_max, simulation_time):
@@ -105,28 +107,33 @@ def main():
     start_opt = time()
     print("Starting Particle Swarm Optimization...")
 
-    # Main optimization loop
-    for gen in range(n_iter):
-        for i in range(swarm_size):
-            gains = decode_particle(particles_pos[i])
-            cost, *_ = simulate_pid(gains, parameters, waypoints, world, thrust_max, simulation_time)
-            log_step(gains, cost, log_path)
-            if cost < personal_best_cost[i]:
-                personal_best_cost[i] = cost
-                personal_best_pos[i] = particles_pos[i].copy()
-            if cost < global_best_cost:
-                global_best_cost = cost
-                global_best_pos = particles_pos[i].copy()
-        # Update velocity and position
-        for i in range(swarm_size):
-            r1 = rng.random(dim)
-            r2 = rng.random(dim)
-            particles_vel[i] = (w * particles_vel[i] +
-                                c1 * r1 * (personal_best_pos[i] - particles_pos[i]) +
-                                c2 * r2 * (global_best_pos - particles_pos[i]))
-            particles_pos[i] = particles_pos[i] + particles_vel[i]
-            particles_pos[i] = np.clip(particles_pos[i], lower_bounds, upper_bounds)
-        print(f"Generation {gen+1}/{n_iter} | best_cost={global_best_cost:.4f}")
+    try:
+        # Main optimization loop
+        for gen in range(n_iter):
+            for i in range(swarm_size):
+                gains = decode_particle(particles_pos[i])
+                costs_sim = simulate_pid(gains, parameters, waypoints, world, thrust_max, simulation_time)
+                total_cost = costs_sim['total_cost']
+                costs.append(total_cost)
+                log_step(gains, total_cost, log_path)
+                if total_cost < personal_best_cost[i]:
+                    personal_best_cost[i] = total_cost
+                    personal_best_pos[i] = particles_pos[i].copy()
+                if total_cost < global_best_cost:
+                    global_best_cost = total_cost
+                    global_best_pos = particles_pos[i].copy()
+            # Update velocity and position
+            for i in range(swarm_size):
+                r1 = rng.random(dim)
+                r2 = rng.random(dim)
+                particles_vel[i] = (w * particles_vel[i] +
+                                    c1 * r1 * (personal_best_pos[i] - particles_pos[i]) +
+                                    c2 * r2 * (global_best_pos - particles_pos[i]))
+                particles_pos[i] = particles_pos[i] + particles_vel[i]
+                particles_pos[i] = np.clip(particles_pos[i], lower_bounds, upper_bounds)
+            print(f"Generation {gen+1}/{n_iter} | best_cost={global_best_cost:.4f}")
+    except KeyboardInterrupt:
+        print("Optimization interrupted by user.")
 
     tot_time = time() - start_opt
     best_params = decode_particle(global_best_pos)
@@ -148,6 +155,8 @@ def main():
         f.write(f"Total optimization time: {seconds_to_hhmmss(tot_time)}\n")
         f.write(f"N iterations: {n_iter}\n")
         f.write(f"Max sim time: {simulation_time:.2f} seconds\n")
+
+    plot_costs_trend(costs, save_path=opt_output_path.replace(".txt", "_costs.png"))
 
 if __name__ == "__main__":
     main()

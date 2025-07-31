@@ -245,13 +245,14 @@ def plot3DAnimation(sim: Simulation, window=(100, 100, 100)):
     plt.show()
 
 
-def plotNoiseEmissionMap(sim: Simulation, window=(100, 100)):
+def plotNoiseEmissionMap(sim: Simulation, window=(100, 100), upper_limit=None):
     """
     Plot a 2D noise emission map of the drone overlaid with its trajectory and waypoints.
 
     Parameters:
         sim (Simulation): Simulation object containing positions, noise map, and waypoints.
         window (tuple): (x_max, y_max) display limits.
+        upper_limit (float): Optional upper limit for the noise level color scale.
     """
     noise_emission_map = sim.noise_emission_map
     if len(noise_emission_map) == 0:
@@ -276,6 +277,8 @@ def plotNoiseEmissionMap(sim: Simulation, window=(100, 100)):
 
     # Plot noise emission scatter
     scatter = plt.scatter(x_coords, y_coords, c=spl_values, cmap=cmap, marker='o', alpha=0.7)
+    if upper_limit is not None:
+        scatter.set_clim(0, upper_limit)
     plt.colorbar(scatter, label='Noise Level (dB)')
 
     # Overlay drone trajectory
@@ -293,9 +296,63 @@ def plotNoiseEmissionMap(sim: Simulation, window=(100, 100)):
     # Final plot adjustments
     plt.xlim(0, window[0])
     plt.ylim(0, window[1])
-    plt.title('Drone Noise Emission Map with Trajectory and Waypoints')
+    plt.title('Drone Noise Emission Map. Average SPL: {:.2f} dB'.format(np.mean(sim.spl_history)))
     plt.xlabel('X Position (m)')
     plt.ylabel('Y Position (m)')
+    plt.legend()
+    plt.grid(True)
+    plt.tight_layout()
+    plt.show()
+
+def plotNoiseEmissionHistogram(sims: list, bins=50, upper_limit=None):
+    """
+    Plot a histogram of the noise emission levels recorded during multiple simulations.
+    The histogram shows in different colors the distribution of sound pressure levels (SPL) across all simulations.
+    The bars of different simulations are stacked side by side for comparison.
+
+    Parameters:
+        sims (list[Simulation]): List of Simulation objects (or a single simulation) containing noise emission data.
+        bins (int): Number of bins for the histogram.
+        upper_limit (float): Optional upper limit for the histogram x-axis.
+    """
+    if type(sims) is Simulation:
+        sims = [sims]
+    # Extract SPL values from each simulation's noise emission map
+    all_spl_data = []
+    for idx, sim in enumerate(sims):
+        spl_vals = [v['spl'] for v in sim.noise_emission_map.values()]
+        all_spl_data.append(spl_vals)
+
+    # Check for data
+    if all(len(data) == 0 for data in all_spl_data):
+        print("No noise emission data available for histogram.")
+        return
+
+    # Determine common bin edges
+    combined = np.hstack([np.array(data) for data in all_spl_data if len(data) > 0])
+    if upper_limit is not None:
+        combined = combined[combined <= upper_limit]
+    bin_edges = np.linspace(combined.min(), combined.max(), bins + 1)
+
+    # Plot bars side by side for each simulation
+    plt.figure(figsize=(10, 6))
+    width = (bin_edges[1] - bin_edges[0]) / (len(sims) + 1)
+
+    for i, spl_data in enumerate(all_spl_data):
+        # Compute histogram counts
+        counts, _ = np.histogram(spl_data, bins=bin_edges)
+        # Compute bar centers
+        centers = (bin_edges[:-1] + bin_edges[1:]) / 2
+        # Offset for side-by-side bars
+        offset = (i - (len(sims) - 1) / 2) * width
+        plt.bar(centers + offset, counts, width=width, alpha=0.7, label=f'Simulation {i + 1}')
+
+    # Final plot adjustments
+    plt.xlabel('Noise Level (dB)')
+    plt.ylabel('Count')
+    if upper_limit is not None:
+        plt.xlim(0, upper_limit)
+    plt.title('Noise Emission Histogram Across Simulations')
     plt.legend()
     plt.grid(True)
     plt.tight_layout()

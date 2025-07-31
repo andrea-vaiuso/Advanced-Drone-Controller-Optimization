@@ -2,12 +2,13 @@ import numpy as np
 from Drone import QuadcopterModel
 from Controller import QuadCopterController
 from Simulation import Simulation
-from plotting_functions import plot3DAnimation, plotLogData, plotNoiseEmissionMap
+from plotting_functions import plot3DAnimation, plotLogData, plotNoiseEmissionMap, plotNoiseEmissionHistogram
 from World import World
 from Noise.DNNModel import RotorSoundModel as DNNModel
 from Noise.EmpaModel import NoiseModel as EmpaModel
 from Rotor.TorchRotorModel import RotorModel
 import yaml
+from opt_func import calculate_costs
 
 def main():
     """
@@ -17,9 +18,9 @@ def main():
     parameters = load_parameters('Settings/simulation_parameters.yaml')
 
     # # --- Define Waypoints (with desired speed) ---
-    # waypoints = create_training_waypoints()
+    waypoints = create_training_waypoints()
     # Create random waypoints
-    waypoints = create_random_waypoints(n=3, x_range=(10, 90), y_range=(10, 90), z_range=(10, 100), v=5)
+    # waypoints = create_random_waypoints(n=3, x_range=(10, 90), y_range=(10, 90), z_range=(10, 100), v=5)
     # Initial drone state
     init_state = create_initial_state()
 
@@ -52,14 +53,19 @@ def main():
     # Plot 3D animation of the drone's trajectory
     plot3DAnimation(sim)
     
-    plotNoiseEmissionMap(sim)
-    
+    # Plot noise emission map and histogram
+    plotNoiseEmissionMap(sim, upper_limit=3000)
+    plotNoiseEmissionHistogram(sim, upper_limit=3000)
+
     plotLogData(
         generate_log_dict(sim),
         time = np.array(sim.time_history),
         waypoints = waypoints,
         ncols = 3,
     )
+
+    costs = calculate_costs(sim, parameters['simulation_time'])
+    print("Costs:", costs)
 
 def load_parameters(parameters_file) -> dict:
     """

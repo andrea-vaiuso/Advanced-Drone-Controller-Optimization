@@ -4,6 +4,7 @@ import json
 from datetime import datetime
 from time import time
 from typing import Dict, Any
+import matplotlib.pyplot as plt
 
 import numpy as np
 from Simulation import Simulation
@@ -11,6 +12,30 @@ from Simulation import Simulation
 # timers used for logging
 start_time = time()
 last_time = start_time
+
+
+def plot_costs_trend(costs: list, save_path: str = None) -> None:
+    """
+    Plot the trend of costs over iterations. If `save_path` is provided, save the plot to that path.
+    A red marker indicates the best cost found, while a blue line shows the trend.
+    """
+    plt.figure(figsize=(10, 5))
+    plt.plot(costs, color='blue', label='Cost Trend')
+    best_cost = min(costs)
+    best_idx = costs.index(best_cost)
+    plt.scatter(best_idx, best_cost, color='red', label='Best Cost', zorder=5)
+    plt.title('Cost Trend Over Iterations')
+    plt.xlabel('Iteration')
+    plt.ylabel('Cost')
+    plt.legend()
+    
+    if save_path:
+        plt.savefig(save_path)
+
+    plt.show()
+    
+
+
 
 
 def log_step(params: Dict[str, Any], cost: float, log_path: str) -> None:
@@ -59,8 +84,8 @@ def get_completion_cost(sim: Simulation, completion_weight = 1000.0) -> float:
 
 
 def calculate_costs(sim: Simulation, simulation_time: float, 
-                    osc_weight: float = 3.0,
-                    overshoot_weight: float = 0.01, 
+                    osc_weight: float = 1.0,
+                    overshoot_weight: float = 0.02, 
                     completition_weight: float = 1000.0,
                     pitch_roll_oscillation_weight: float = 1.0,
                     thrust_oscillation_weight: float = 1e-5,
@@ -114,18 +139,18 @@ def calculate_costs(sim: Simulation, simulation_time: float,
     if not sim.has_moved:
         total_cost += 1000
 
-    return (
-        total_cost,
-        time_cost,
-        final_distance_cost,
-        oscillation_cost,
-        completition_cost,
-        overshoot_cost,
-        power_cost,
-        noise_cost,
-        sim.current_seg_idx,
-        len(sim.waypoints),
-    )
+    return {
+        'total_cost': total_cost,
+        'time_cost': time_cost,
+        'final_distance_cost': final_distance_cost,
+        'oscillation_cost': oscillation_cost,
+        'completition_cost': completition_cost,
+        'overshoot_cost': overshoot_cost,
+        'power_cost': power_cost,
+        'noise_cost': noise_cost,
+        'n_waypoints_completed': sim.current_seg_idx,
+        'tot_waypoints': len(sim.waypoints),
+    }
 
 
 def seconds_to_hhmmss(seconds: float) -> str:
