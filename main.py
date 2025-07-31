@@ -18,9 +18,9 @@ def main():
     parameters = load_parameters('Settings/simulation_parameters.yaml')
 
     # # --- Define Waypoints (with desired speed) ---
-    waypoints = create_training_waypoints()
+    # waypoints = create_training_waypoints()
     # Create random waypoints
-    # waypoints = create_random_waypoints(n=3, x_range=(10, 90), y_range=(10, 90), z_range=(10, 100), v=5)
+    waypoints = create_random_waypoints(n=2, x_range=(10, 90), y_range=(10, 90), z_range=(10, 100), v=5)
     # Initial drone state
     init_state = create_initial_state()
 
@@ -46,9 +46,8 @@ def main():
 
     # Initialize the simulation
     sim = create_simulation(drone, world, waypoints, parameters, noise_model, generate_sound_map=True)
-
-    sim.setWind(max_simulation_time=parameters['simulation_time'], dt=parameters['dt'], height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed=None)
-    sim.startSimulation(stop_at_target=True, use_static_target=True, verbose=True)
+    sim.setWind(max_simulation_time=parameters['simulation_time'], dt=parameters['dt'], height=100, airspeed=10, turbulence_level=100, plot_wind_signal=False, seed=None)
+    sim.startSimulation(stop_at_target=False, use_static_target=True, verbose=True)
 
     # Plot 3D animation of the drone's trajectory
     plot3DAnimation(sim)

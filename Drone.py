@@ -49,7 +49,7 @@ class QuadcopterModel:
         self.init_state = init_state.copy()  # Store the initial state for reset
         self.controller = controller
         self.max_rpm = max_rpm
-        self.delta_T = 0.0
+        self.delta_T = [0.0] * n_rotors
         self.thrust = 0.0 
         self.thrust_no_wind = 0.0  # Thrust without wind effect
 
@@ -257,8 +257,9 @@ class QuadcopterModel:
             kvz = 2 * np.pi ** 2 * V_z
             pT_1 = kvz * omega * (self.R_tip ** 2 - self.R_root ** 2)
             pT_2 = kvz / omega * (V_x ** 2 + V_y ** 2) * np.log(self.R_tip / self.R_root)
-            self.delta_T = (pT_1 + pT_2) * self.rho * 0.5
-        else: self.delta_T = 0.0
+            self.delta_T = ((pT_1 + pT_2) * self.rho * 0.5).tolist()  
+        else: self.delta_T = [0.0] * len(self.rotors)
+        self.state['thrust'] = (np.array(self.state['thrust']) + self.delta_T).tolist()
 
     def reset_state(self) -> None:
         """
@@ -272,7 +273,7 @@ class QuadcopterModel:
         Returns:
             np.ndarray: Angular velocities of the motors in rad/s.
         """
-        return self._rpm_to_omega(self.state['rpm'])
+        return self._rpm_to_omega(np.array(self.state['rpm']) + 1)
 
     @staticmethod
     def _rpm_to_omega(rpm: np.ndarray) -> np.ndarray:
