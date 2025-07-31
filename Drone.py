@@ -49,7 +49,7 @@ class QuadcopterModel:
         self.init_state = init_state.copy()  # Store the initial state for reset
         self.controller = controller
         self.max_rpm = max_rpm
-        self.delta_b = 0.0
+        self.delta_T = 0.0
         self.thrust = 0.0 
         self.thrust_no_wind = 0.0  # Thrust without wind effect
 
@@ -57,12 +57,10 @@ class QuadcopterModel:
         with open(rotor_data_path, 'r') as f:
             for line in f:
                 if line.startswith("radius"):
-                    radius_sections = line.split("=")[1]
-                    self.R = float(radius_sections.split(" ")[-1].strip())
-                    break
-
-        self.A = np.pi * (self.R ** 2)  # Rotor area
-
+                    radius_sections = line.split("=")[1].strip()
+                    self.R_root = float(radius_sections.split(" ")[-1].strip())
+                    self.R_tip = float(radius_sections.split(" ")[0].strip())
+        
         self.rotors: list[RotorModel] = []
         for _ in range(n_rotors):
             rotor_model = RotorModel(1,6, norm_params_path="Rotor/normalization_params.pth")
@@ -254,18 +252,19 @@ class QuadcopterModel:
             rpm_ref (float): Reference RPM for wind effect calculation. Default is 2500.
         """
         V_x, V_y, V_z = V_components
+        omega = self.get_omega()
         if simulate_wind: 
-            theta_0 = 2 * np.pi / 180  # Initial angle in radians
-            omega = self._rpm_to_omega(rpm_ref)  # Example RPM for wind effect calculation
-            self.delta_b = (3/2) * (self.c_t / ((theta_0 * omega * self.R) + 1e-6)) * V_z 
-        else: self.delta_b = 0.0
+            kvz = 2 * np.pi ** 2 * V_z
+            pT_1 = kvz * omega * (self.R_tip ** 2 - self.R_root ** 2)
+            pT_2 = kvz / omega * (V_x ** 2 + V_y ** 2) * np.log(self.R_tip / self.R_root)
+            self.delta_T = (pT_1 + pT_2) * self.rho * 0.5
+        else: self.delta_T = 0.0
 
     def reset_state(self) -> None:
         """
         Reset the drone's state to the initial state.
         """
         self.state = self.init_state.copy()
-        self.delta_b = 0.0
 
     def get_omega(self) -> np.ndarray:
         """

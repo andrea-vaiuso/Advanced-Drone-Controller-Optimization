@@ -54,8 +54,8 @@ def main():
     plot3DAnimation(sim)
     
     # Plot noise emission map and histogram
-    plotNoiseEmissionMap(sim, upper_limit=None)
-    plotNoiseEmissionHistogram(sim, upper_limit=None)
+    plotNoiseEmissionMap(sim, upper_limit=40)
+    plotNoiseEmissionHistogram(sim, upper_limit=40)
 
     plotLogData(
         generate_log_dict(sim),

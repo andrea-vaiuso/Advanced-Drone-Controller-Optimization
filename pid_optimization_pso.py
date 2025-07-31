@@ -1,5 +1,5 @@
 # Author: Andrea Vaiuso
-# Version: 1.1
+# Version: 1.2
 # Date: 31.07.2025
 # Description: This module implements Particle Swarm Optimization (PSO) for PID gain tuning of a drone controller.
 

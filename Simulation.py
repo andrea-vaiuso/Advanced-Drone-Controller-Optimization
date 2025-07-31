@@ -74,7 +74,6 @@ class Simulation:
         self.swl_history = []
         self.thrust_history = []
         self.power_history = []
-        self.delta_b_history = []
         self.thrust_no_wind_history = []
         self.distance_history = []
         self.seg_idx_history = []
@@ -359,7 +358,6 @@ class Simulation:
         self.spl_history.clear()
         self.swl_history.clear()
         self.thrust_history.clear()
-        self.delta_b_history.clear()
         self.thrust_no_wind_history.clear()
         self.distance_history.clear()
         self.seg_idx_history.clear()
@@ -384,7 +382,6 @@ class Simulation:
         self.vertical_speed_history.append(self.drone.state['vel'][2])
         self.targets.append(target_dynamic.copy())
         self.thrust_history.append(self.drone.thrust)
-        self.delta_b_history.append(self.drone.delta_b)
         self.thrust_no_wind_history.append(self.drone.thrust_no_wind)
         self.power_history.append(np.sum(self.drone.state['power']))
 
