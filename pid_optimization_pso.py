@@ -1,6 +1,6 @@
 # Author: Andrea Vaiuso
 # Version: 1.3
-# Date: 31.07.2025
+# Date: 06.08.2025
 # Description: Class-based Particle Swarm Optimization for PID gain tuning.
 """Particle Swarm Optimization for PID tuning packaged into a class."""
 
@@ -220,7 +220,14 @@ class PSOPIDOptimizer:
 
 def main() -> None:
     """Run PID optimization using Particle Swarm Optimization."""
-    optimizer = PSOPIDOptimizer()
+    optimizer = PSOPIDOptimizer(
+        config_file="Settings/pso_opt.yaml",
+        parameters_file="Settings/simulation_parameters.yaml",
+        verbose=True,
+        set_initial_obs=True,
+        simulate_wind_flag=False,
+        waypoints=mainfunc.create_training_waypoints(),
+    )
     optimizer.optimize()
 
 

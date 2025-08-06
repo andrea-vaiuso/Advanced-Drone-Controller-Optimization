@@ -1,6 +1,6 @@
 # Author: Andrea Vaiuso
 # Version: 1.1
-# Date: 31.07.2025
+# Date: 06.08.2025
 # Description: Class-based implementation of a TD3-driven PID optimization
 #              routine for a quadcopter controller.
 """TD3 optimization for PID tuning packaged into a class."""
@@ -248,7 +248,14 @@ class TD3PIDOptimizer:
 
 def main() -> None:
     """Run PID optimization using TD3."""
-    optimizer = TD3PIDOptimizer()
+    optimizer = TD3PIDOptimizer(
+        config_file="Settings/td3_opt.yaml",
+        parameters_file="Settings/simulation_parameters.yaml",
+        verbose=True,
+        set_initial_obs=True,
+        simulate_wind_flag=False,
+        waypoints=mainfunc.create_training_waypoints(),
+    )
     optimizer.optimize()
 
 

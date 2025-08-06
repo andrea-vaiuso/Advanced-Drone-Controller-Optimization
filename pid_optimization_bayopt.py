@@ -1,6 +1,6 @@
 # Author: Andrea Vaiuso
 # Version: 2.2
-# Date: 31.07.2025
+# Date: 06.08.2025
 # Description: Class-based Bayesian Optimization for PID gain tuning.
 """Bayesian Optimization for PID tuning packaged into a class."""
 
@@ -151,7 +151,7 @@ class BayesianPIDOptimizer:
         if self.verbose:
             print(
                 f"[ BAY_OPT ] {self.iteration}/{self.n_iter}: cost={total_cost:.4f}, "
-                f"best_cost={-self.best_target:.4f}"
+                f"best_cost={-self.best_target:.4f}, costs={sim_costs}"
             )
         return target
 
@@ -169,7 +169,7 @@ class BayesianPIDOptimizer:
             optimizer.probe(params=self.init_guess, lazy=True)
 
         start_time = time()
-        print("Starting optimization...")
+        print("Starting Bayesian Optimization...")
         try:
             optimizer.maximize(init_points=self.init_points, n_iter=self.n_iter)
         except KeyboardInterrupt:
@@ -209,7 +209,14 @@ class BayesianPIDOptimizer:
 
 def main() -> None:
     """Run PID optimization using Bayesian Optimization."""
-    optimizer = BayesianPIDOptimizer()
+    optimizer = BayesianPIDOptimizer(
+        config_file="Settings/bay_opt.yaml",
+        parameters_file="Settings/simulation_parameters.yaml",
+        verbose=True,
+        set_initial_obs=True,
+        simulate_wind_flag=False,
+        waypoints=mainfunc.create_training_waypoints(),
+    )
     optimizer.optimize()
 
 
