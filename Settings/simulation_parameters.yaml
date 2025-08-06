@@ -2,8 +2,8 @@
 dt: 0.007
 simulation_time: 150 # seconds
 frame_skip: 25 # Number of frames to skip for smoother animation
-threshold: 2.0  # Stop simulation if within 2 meters of final target
-target_shift_threshold_distance: 5 # Shift to next segment if within 10 meters of current segment
+threshold: 2.0  # Stop simulation threshold
+target_shift_threshold_distance: 5 # Shift to next segment threshold 
 
 max_rpm: 3000 # Maximum RPM for the motors
 n_rotors: 4 # Number of rotors

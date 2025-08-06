@@ -169,6 +169,11 @@ class PSOPIDOptimizer:
                     total_cost = costs_sim["total_cost"]
                     self.costs.append(total_cost)
                     log_step(gains, total_cost, self.log_path, costs_sim)
+                    if self.verbose:
+                        print(
+                            f"[ PSO ] Particle {i + 1}/{self.swarm_size} | Generation {gen + 1}/{self.n_iter} |"
+                            f"cost={total_cost:.4f}, costs={costs_sim}"
+                        )
                     if total_cost < personal_best_cost[i]:
                         personal_best_cost[i] = total_cost
                         personal_best_pos[i] = particles_pos[i].copy()
@@ -188,10 +193,6 @@ class PSOPIDOptimizer:
                         particles_pos[i], self.lower_bounds, self.upper_bounds
                     )
                 self.best_costs.append(self.global_best_cost)
-                if self.verbose:
-                    print(
-                        f"[ PSO ] Generation {gen + 1}/{self.n_iter} | best_cost={self.global_best_cost:.4f}"
-                    )
         except KeyboardInterrupt:
             print("Optimization interrupted by user.")
         finally:

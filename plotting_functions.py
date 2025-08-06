@@ -304,6 +304,7 @@ def plotNoiseEmissionMap(sim: Simulation, window=(100, 100), upper_limit=None):
     plt.tight_layout()
     plt.show()
 
+
 def plotNoiseEmissionHistogram(sims: list, bins=50, upper_limit=None):
     """
     Plot a histogram of the noise emission levels recorded during multiple simulations.

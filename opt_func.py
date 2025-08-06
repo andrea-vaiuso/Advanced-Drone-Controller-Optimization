@@ -33,7 +33,7 @@ def plot_costs_trend(costs: list, save_path: str = None) -> None:
     plt.legend()
     
     if save_path:
-        plt.savefig(save_path)
+        plt.savefig(save_path, dpi=300, bbox_inches='tight')
 
     plt.show()
 
@@ -91,8 +91,9 @@ def calculate_costs(sim: Simulation, simulation_time: float,
                     pitch_roll_oscillation_weight: float = 1.0,
                     thrust_oscillation_weight: float = 1e-5,
                     power_weight: float = 1e-4,
-                    noise_weight: float = 6e-23) -> tuple:
-    
+                    noise_weight: float = 6e-23,
+                    print_costs: bool = False) -> tuple:
+
     """Compute the cost metrics used for PID gain optimization."""
     angles = np.array(sim.angles_history)
     final_time = sim.navigation_time if sim.navigation_time is not None else simulation_time
@@ -125,7 +126,7 @@ def calculate_costs(sim: Simulation, simulation_time: float,
     p = 12  # norm order for noise cost
     if len(sim.swl_history) > 0:
         swl = np.array(sim.swl_history, dtype=float)
-        noise_cost = noise_weight * np.linalg.norm(swl, ord=p)**p
+        noise_cost = noise_weight * (np.linalg.norm(swl, ord=p)**p + np.max(swl))
     else:
         noise_cost = 0.0
 
@@ -140,7 +141,7 @@ def calculate_costs(sim: Simulation, simulation_time: float,
     if not sim.has_moved:
         total_cost += 1000
 
-    return {
+    result = {
         'total_cost': total_cost,
         'time_cost': time_cost,
         'final_distance_cost': final_distance_cost,
@@ -152,6 +153,9 @@ def calculate_costs(sim: Simulation, simulation_time: float,
         'n_waypoints_completed': sim.current_seg_idx,
         'tot_waypoints': len(sim.waypoints),
     }
+
+    if print_costs: print(result)
+    return result
 
 
 def run_simulation(pid_gains: Dict[str, tuple],
