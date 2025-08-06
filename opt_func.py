@@ -84,9 +84,9 @@ def get_completion_cost(sim: Simulation, completion_weight = 1000.0) -> float:
     return completion_weight * (1 - perc_completed)
 
 
-def calculate_costs(sim: Simulation, simulation_time: float, 
+def calculate_costs(sim: Simulation, simulation_time: float,
                     osc_weight: float = 1.0,
-                    overshoot_weight: float = 0.02, 
+                    overshoot_weight: float = 0.02,
                     completition_weight: float = 1000.0,
                     pitch_roll_oscillation_weight: float = 1.0,
                     thrust_oscillation_weight: float = 1e-5,
@@ -154,6 +154,79 @@ def calculate_costs(sim: Simulation, simulation_time: float,
     }
 
 
+def run_simulation(pid_gains: Dict[str, tuple],
+                   parameters: dict,
+                   waypoints: list,
+                   world,
+                   thrust_max: float,
+                   simulation_time: float,
+                   noise_model=None,
+                   simulate_wind: bool = False) -> Dict[str, float]:
+    """Execute a simulation for the provided PID gains.
+
+    Parameters
+    ----------
+    pid_gains : Dict[str, tuple]
+        PID gains for the controller.
+    parameters : dict
+        Simulation parameters loaded from a YAML file.
+    waypoints : list
+        Waypoints followed by the drone during the simulation.
+    world : World
+        Environment in which the simulation takes place.
+    thrust_max : float
+        Maximum thrust obtainable from the rotor model.
+    simulation_time : float
+        Maximum duration of the simulation in seconds.
+    noise_model : optional
+        Acoustic noise model used in the simulation, ``None`` disables noise
+        calculations.
+    simulate_wind : bool, optional
+        If ``True``, enable the Dryden wind model during the simulation.
+
+    Returns
+    -------
+    Dict[str, float]
+        Dictionary containing the cost metrics returned by :func:`calculate_costs`.
+    """
+
+    # Import here to avoid circular imports when ``main`` imports this module
+    import main as mainfunc  # noqa: WPS433 (acceptable in this context)
+
+    init_state = mainfunc.create_initial_state()
+    quad_controller = mainfunc.create_quadcopter_controller(
+        init_state=init_state,
+        pid_gains=pid_gains,
+        t_max=thrust_max,
+        parameters=parameters,
+    )
+    drone = mainfunc.create_quadcopter_model(
+        init_state=init_state, quad_controller=quad_controller, parameters=parameters
+    )
+    sim = mainfunc.create_simulation(
+        drone=drone,
+        world=world,
+        waypoints=waypoints,
+        parameters=parameters,
+        noise_model=noise_model,
+        generate_sound_map=False,
+    )
+    if simulate_wind:
+        sim.setWind(
+            max_simulation_time=simulation_time,
+            dt=float(parameters["dt"]),
+            height=100,
+            airspeed=10,
+            turbulence_level=10,
+            plot_wind_signal=False,
+            seed=None,
+        )
+    sim.startSimulation(
+        stop_at_target=True, verbose=False, stop_sim_if_not_moving=True, use_static_target=True
+    )
+    return calculate_costs(sim, simulation_time)
+
+
 def seconds_to_hhmmss(seconds: float) -> str:
     """Convert seconds to a ``HH:MM:SS`` formatted string."""
     hours = int(seconds // 3600)
@@ -179,3 +252,4 @@ def show_best_params(best_params, opt_output_path, global_best_cost, n_iter, sim
         f.write(f"Total optimization time: {seconds_to_hhmmss(tot_time)}\n")
         f.write(f"N iterations: {n_iter}\n")
         f.write(f"Max sim time: {simulation_time:.2f} seconds\n")
+

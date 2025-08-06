@@ -1,224 +1,218 @@
 # Author: Andrea Vaiuso
-# Version: 2.1
+# Version: 2.2
 # Date: 31.07.2025
-# Description: This module implements Bayesian Optimization for PID gain tuning of a drone controller.
+# Description: Class-based Bayesian Optimization for PID gain tuning.
+"""Bayesian Optimization for PID tuning packaged into a class."""
 
-
-import json
 import os
 from datetime import datetime
 from time import time
-import yaml
+from typing import Dict, Optional
 
+import yaml
 import numpy as np
 from bayes_opt import BayesianOptimization
+
 from World import World
 import main as mainfunc
-from Simulation import Simulation
-
-from plotting_functions import plot3DAnimation
 import opt_func
 from opt_func import (
-    log_step, 
-    calculate_costs, 
-    seconds_to_hhmmss, 
-    plot_costs_trend, 
-    show_best_params
+    log_step,
+    plot_costs_trend,
+    show_best_params,
+    run_simulation,
 )
 
-# Optimization parameters loaded from YAML
-with open(os.path.join('Settings', 'bay_opt.yaml'), 'r') as f:
-    bayopt_cfg = yaml.safe_load(f)
 
-iteration = 0
-n_iter = int(bayopt_cfg.get('n_iter', 1500))
-costs = []
-best_costs = []
-best_target = -float('inf')
-best_params = None
-simulation_time = float(bayopt_cfg.get('simulation_time', 150))
-init_points = int(bayopt_cfg.get('init_points', 20))
+class BayesianPIDOptimizer:
+    """Optimize PID gains using Bayesian Optimization.
 
-timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-base_dir = os.path.join('Optimizations', 'Bayesian', timestamp)
-os.makedirs(base_dir, exist_ok=True)
+    Parameters
+    ----------
+    config_file : str, optional
+        Path to the Bayesian optimization configuration file.
+    parameters_file : str, optional
+        Path to the simulation parameters YAML file.
+    verbose : bool, optional
+        If ``True`` print step-by-step information.
+    set_initial_obs : bool, optional
+        Probe the current PID gains before the optimization when ``True``.
+    simulate_wind_flag : bool, optional
+        Enable the Dryden wind model during simulations.
+    waypoints : list, optional
+        List of waypoints used for training. If ``None`` a default set is
+        generated.
+    """
 
-opt_output_path = os.path.join(base_dir, 'best_parameters.txt')
-log_path = os.path.join(base_dir, 'optimization_log.json')
+    def __init__(
+        self,
+        config_file: str = "Settings/bay_opt.yaml",
+        parameters_file: str = "Settings/simulation_parameters.yaml",
+        *,
+        verbose: bool = True,
+        set_initial_obs: bool = True,
+        simulate_wind_flag: bool = False,
+        waypoints: Optional[list] = None,
+    ) -> None:
+        with open(config_file, "r") as f:
+            bayopt_cfg = yaml.safe_load(f)
 
-# initialize logging timers in opt_func
-opt_func.start_time = time()
-opt_func.last_time = opt_func.start_time
+        self.n_iter = int(bayopt_cfg.get("n_iter", 1500))
+        self.init_points = int(bayopt_cfg.get("init_points", 20))
+        self.simulation_time = float(bayopt_cfg.get("simulation_time", 150))
 
-parameters = mainfunc.load_parameters("Settings/simulation_parameters.yaml")
-thrust_max = mainfunc.get_max_thrust_from_rotor_model(parameters)
-waypoints = mainfunc.create_training_waypoints()
+        self.verbose = verbose
+        self.set_initial_obs = set_initial_obs
+        self.simulate_wind_flag = simulate_wind_flag
 
-world = World.load_world(parameters['world_data_path'])
+        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.base_dir = os.path.join("Optimizations", "Bayesian", self.timestamp)
+        os.makedirs(self.base_dir, exist_ok=True)
+        self.opt_output_path = os.path.join(self.base_dir, "best_parameters.txt")
+        self.log_path = os.path.join(self.base_dir, "optimization_log.json")
 
-noise_model = mainfunc.load_dnn_noise_model(parameters)
+        opt_func.start_time = time()
+        opt_func.last_time = opt_func.start_time
 
+        self.parameters = mainfunc.load_parameters(parameters_file)
+        self.thrust_max = mainfunc.get_max_thrust_from_rotor_model(self.parameters)
+        self.waypoints = (
+            waypoints if waypoints is not None else mainfunc.create_training_waypoints()
+        )
+        self.world = World.load_world(self.parameters["world_data_path"])
+        self.noise_model = mainfunc.load_dnn_noise_model(self.parameters)
 
+        pbounds_cfg = bayopt_cfg.get("pbounds", {})
+        self.pbounds = {k: tuple(v) for k, v in pbounds_cfg.items()}
 
-def simulate_pid(pid_gains):
-    """Run a simulation with the given PID gains and return the cost metrics."""
-
-    # Initial drone state
-    init_state = mainfunc.create_initial_state()
-
-    quad_controller = mainfunc.create_quadcopter_controller(init_state=init_state, pid_gains=pid_gains, t_max=thrust_max, parameters=parameters)
-    # Initialize the quadcopter model with the rotor model
-    # Default values are taken from the paper: "Modeling of a Quadcopter Trajectory Tracking System Using PID Controller" by Sabir et.al. (2020)
-    drone = mainfunc.create_quadcopter_model(init_state=init_state, quad_controller=quad_controller, parameters=parameters)
-
-    # Initialize the simulation
-    sim = mainfunc.create_simulation(drone=drone, world=world, waypoints=waypoints, parameters=parameters, noise_model=noise_model, generate_sound_map=False)
-
-    # sim.setWind(max_simulation_time=simulation_time, dt=dt, height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed = None)
-    sim.startSimulation(stop_at_target=True, verbose=False, stop_sim_if_not_moving=True, use_static_target=True)
-
-    # FOR DEBUG PURPOSES plot3DAnimation(np.array(sim.positions), 
-                    # np.array(sim.angles_history), 
-                    # np.array(sim.rpms_history), 
-                    # np.array(sim.time_history), 
-                    # np.array(sim.horiz_speed_history), 
-                    # np.array(sim.vertical_speed_history), 
-                    # np.array(sim.targets), 
-                    # waypoints, 
-                    # init_state['pos'], 
-                    # float(parameters['dt']), 
-                    # int(parameters['frame_skip']))
-
-    return calculate_costs(sim, simulation_time)
-
-def objective(kp_pos, ki_pos, kd_pos,
-              kp_alt, ki_alt, kd_alt,
-              kp_att, ki_att, kd_att,
-              kp_hsp, ki_hsp, kd_hsp,
-              kp_vsp, ki_vsp, kd_vsp):
-    """Objective function called by the Bayesian optimizer."""
-    global iteration, best_target, best_params
-
-    iteration += 1
-    params = {
-        'k_pid_pos': (kp_pos, ki_pos, kd_pos),
-        'k_pid_alt': (kp_alt, ki_alt, kd_alt),
-        'k_pid_att': (kp_att, ki_att, kd_att),
-        'k_pid_yaw': (0.5, 1e-6, 0.1),
-        'k_pid_hsp': (kp_hsp, ki_hsp, kd_hsp),
-        'k_pid_vsp': (kp_vsp, ki_vsp, kd_vsp),
-    }
-    sim_costs = simulate_pid(pid_gains=params)
-
-    total_cost = sim_costs['total_cost']
-    time_cost = sim_costs['time_cost']
-    final_distance_cost = sim_costs['final_distance_cost']
-    oscillation_cost = sim_costs['oscillation_cost']
-    completition_cost = sim_costs['completition_cost']
-    overshoot_cost = sim_costs['overshoot_cost']
-    power_cost = sim_costs['power_cost']
-    noise_cost = sim_costs['noise_cost']
-    n_waypoints_completed = sim_costs['n_waypoints_completed']
-    tot_waypoints = sim_costs['tot_waypoints']
-
-    log_step(params, total_cost, log_path, sim_costs)
-    target = -total_cost  # bayes_opt maximizes
-
-    # If this target is better than the best so far, update the file
-    if target > best_target:
-        best_target = target
-        best_params = {
-            'k_pid_pos': (kp_pos, ki_pos, kd_pos),
-            'k_pid_alt': (kp_alt, ki_alt, kd_alt),
-            'k_pid_att': (kp_att, ki_att, kd_att),
-            'k_pid_yaw': (0.5, 1e-6, 0.1),
-            'k_pid_hsp': (kp_hsp, ki_hsp, kd_hsp),
-            'k_pid_vsp': (kp_vsp, ki_vsp, kd_vsp),
-            'final_time': time_cost,
-            'cost': total_cost,
+        current_best = mainfunc.load_pid_gains(self.parameters)
+        self.init_guess = {
+            "kp_pos": current_best["k_pid_pos"][0],
+            "ki_pos": current_best["k_pid_pos"][1],
+            "kd_pos": current_best["k_pid_pos"][2],
+            "kp_alt": current_best["k_pid_alt"][0],
+            "ki_alt": current_best["k_pid_alt"][1],
+            "kd_alt": current_best["k_pid_alt"][2],
+            "kp_att": current_best["k_pid_att"][0],
+            "ki_att": current_best["k_pid_att"][1],
+            "kd_att": current_best["k_pid_att"][2],
+            "kp_hsp": current_best["k_pid_hsp"][0],
+            "ki_hsp": current_best["k_pid_hsp"][1],
+            "kd_hsp": current_best["k_pid_hsp"][2],
+            "kp_vsp": current_best["k_pid_vsp"][0],
+            "ki_vsp": current_best["k_pid_vsp"][1],
+            "kd_vsp": current_best["k_pid_vsp"][2],
         }
-        # write to file
-        with open("opt_temp.txt", 'w') as f:
-            f.write(f"Iteration: {iteration}\n")
-            for k, v in best_params.items():
-                f.write(f"{k}: {v}\n")
-            f.write(f"target = {best_target}\n")
 
-    print(f"[ BAY_OPT ] {iteration}/{n_iter}: cost={total_cost:.4f}, best_cost={best_target:.4f}, time_cost={time_cost:.2f}, " + \
-           f"distance_cost={final_distance_cost:.2f}, oscillation_cost={oscillation_cost:.2f}, completition_cost={completition_cost:.2f}, overshoot_cost={overshoot_cost:.2f}, power_cost={power_cost:.2f}, noise_cost={noise_cost:.2f} | completed_targets={n_waypoints_completed}/{tot_waypoints}")
-    costs.append(total_cost)
-    best_costs.append(best_target)
-    return target
+        self.iteration = 0
+        self.best_target = -np.inf
+        self.best_params: Optional[Dict[str, tuple]] = None
+        self.costs: list[float] = []
+        self.best_costs: list[float] = []
 
+    # ------------------------------------------------------------------
+    # Utility methods
+    # ------------------------------------------------------------------
+    def simulate_pid(self, pid_gains: Dict[str, tuple]) -> Dict[str, float]:
+        """Run a simulation with the given PID gains and return the cost metrics."""
+        return run_simulation(
+            pid_gains,
+            self.parameters,
+            self.waypoints,
+            self.world,
+            self.thrust_max,
+            self.simulation_time,
+            noise_model=self.noise_model,
+            simulate_wind=self.simulate_wind_flag,
+        )
 
-def main():
-    """Run the Bayesian PID gain optimization."""
-    # Load search bounds from configuration
-    pbounds_cfg = bayopt_cfg.get('pbounds', {})
-    pbounds = {k: tuple(v) for k, v in pbounds_cfg.items()}
+    def _objective(self, **kwargs) -> float:
+        """Objective function maximized by the Bayesian optimizer."""
+        self.iteration += 1
+        params = {
+            "k_pid_pos": (kwargs["kp_pos"], kwargs["ki_pos"], kwargs["kd_pos"]),
+            "k_pid_alt": (kwargs["kp_alt"], kwargs["ki_alt"], kwargs["kd_alt"]),
+            "k_pid_att": (kwargs["kp_att"], kwargs["ki_att"], kwargs["kd_att"]),
+            "k_pid_yaw": (0.5, 1e-6, 0.1),
+            "k_pid_hsp": (kwargs["kp_hsp"], kwargs["ki_hsp"], kwargs["kd_hsp"]),
+            "k_pid_vsp": (kwargs["kp_vsp"], kwargs["ki_vsp"], kwargs["kd_vsp"]),
+        }
+        sim_costs = self.simulate_pid(params)
+        total_cost = sim_costs["total_cost"]
+        target = -total_cost
 
-    current_best_pid_gains = mainfunc.load_pid_gains(parameters)
-    init_guess = {
-        'kp_pos': current_best_pid_gains['k_pid_pos'][0],
-        'ki_pos': current_best_pid_gains['k_pid_pos'][1],
-        'kd_pos': current_best_pid_gains['k_pid_pos'][2],
+        log_step(params, total_cost, self.log_path, sim_costs)
+        if target > self.best_target:
+            self.best_target = target
+            self.best_params = params
+        self.costs.append(total_cost)
+        self.best_costs.append(-self.best_target)
 
-        'kp_alt': current_best_pid_gains['k_pid_alt'][0],
-        'ki_alt': current_best_pid_gains['k_pid_alt'][1],
-        'kd_alt': current_best_pid_gains['k_pid_alt'][2],
+        if self.verbose:
+            print(
+                f"[ BAY_OPT ] {self.iteration}/{self.n_iter}: cost={total_cost:.4f}, "
+                f"best_cost={-self.best_target:.4f}"
+            )
+        return target
 
-        'kp_att': current_best_pid_gains['k_pid_att'][0],
-        'ki_att': current_best_pid_gains['k_pid_att'][1],
-        'kd_att': current_best_pid_gains['k_pid_att'][2],
-
-        'kp_hsp': current_best_pid_gains['k_pid_hsp'][0],
-        'ki_hsp': current_best_pid_gains['k_pid_hsp'][1],
-        'kd_hsp': current_best_pid_gains['k_pid_hsp'][2],
-
-        'kp_vsp': current_best_pid_gains['k_pid_vsp'][0],
-        'ki_vsp': current_best_pid_gains['k_pid_vsp'][1],
-        'kd_vsp': current_best_pid_gains['k_pid_vsp'][2]
-    }
-
-    start_time = time()
-    print("Starting optimization...")
-    try:
+    # ------------------------------------------------------------------
+    # Optimization routine
+    # ------------------------------------------------------------------
+    def optimize(self) -> None:
+        """Execute the Bayesian Optimization process."""
         optimizer = BayesianOptimization(
-            f=objective,
-            pbounds=pbounds,
+            f=self._objective,
+            pbounds=self.pbounds,
             random_state=42,
         )
+        if self.set_initial_obs:
+            optimizer.probe(params=self.init_guess, lazy=True)
 
-        optimizer.probe(
-            params=init_guess,
-            lazy=True,
-        )
+        start_time = time()
+        print("Starting optimization...")
+        try:
+            optimizer.maximize(init_points=self.init_points, n_iter=self.n_iter)
+        except KeyboardInterrupt:
+            print("Optimization interrupted by user.")
+        finally:
+            tot_time = time() - start_time
+            if not optimizer.res:
+                print("No evaluations were performed.")
+                return
+            best = optimizer.max["params"]
+            best_formatted = {
+                "k_pid_pos": (best["kp_pos"], best["ki_pos"], best["kd_pos"]),
+                "k_pid_alt": (best["kp_alt"], best["ki_alt"], best["kd_alt"]),
+                "k_pid_att": (best["kp_att"], best["ki_att"], best["kd_att"]),
+                "k_pid_yaw": (0.5, 1e-6, 0.1),
+                "k_pid_hsp": (best["kp_hsp"], best["ki_hsp"], best["kd_hsp"]),
+                "k_pid_vsp": (best["kp_vsp"], best["ki_vsp"], best["kd_vsp"]),
+            }
+            global_best_cost = -optimizer.max["target"]
+            show_best_params(
+                best_formatted,
+                self.opt_output_path,
+                global_best_cost,
+                self.n_iter,
+                self.simulation_time,
+                tot_time,
+            )
+            plot_costs_trend(
+                self.costs,
+                save_path=self.opt_output_path.replace(".txt", "_costs.png"),
+            )
+            plot_costs_trend(
+                self.best_costs,
+                save_path=self.opt_output_path.replace(".txt", "_best_costs.png"),
+            )
 
-        optimizer.maximize(
-            init_points=init_points,
-            n_iter=n_iter,
-        )
-        
-    except KeyboardInterrupt:
-        print("Optimization interrupted by user.")
-    finally:
-        tot_time = time() - start_time
-        print("Best parameters found:")
-        best = optimizer.max['params']
-        best_formatted = {
-            'k_pid_pos': (best['kp_pos'], best['ki_pos'], best['kd_pos']),
-            'k_pid_alt': (best['kp_alt'], best['ki_alt'], best['kd_alt']),
-            'k_pid_att': (best['kp_att'], best['ki_att'], best['kd_att']),
-            'k_pid_yaw': (0.5, 1e-6, 0.1),
-            'k_pid_hsp': (best['kp_hsp'], best['ki_hsp'], best['kd_hsp']),
-            'k_pid_vsp': (best['kp_vsp'], best['ki_vsp'], best['kd_vsp']),
-        }
-        global_best_cost = optimizer.max['target']
 
-        show_best_params(best_formatted, opt_output_path, global_best_cost, n_iter, simulation_time, tot_time)
+def main() -> None:
+    """Run PID optimization using Bayesian Optimization."""
+    optimizer = BayesianPIDOptimizer()
+    optimizer.optimize()
 
-        plot_costs_trend(costs, save_path=opt_output_path.replace(".txt", "_costs.png"))
-        plot_costs_trend(best_costs, save_path=opt_output_path.replace(".txt", "_best_costs.png"))
 
 if __name__ == "__main__":
     main()
+
