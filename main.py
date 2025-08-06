@@ -18,9 +18,9 @@ def main():
     parameters = load_parameters('Settings/simulation_parameters.yaml')
 
     # # --- Define Waypoints (with desired speed) ---
-    # waypoints = create_training_waypoints()
+    waypoints = create_training_waypoints()
     # Create random waypoints
-    waypoints = create_random_waypoints(n=2, x_range=(10, 90), y_range=(10, 90), z_range=(10, 100), v=5)
+    # waypoints = create_random_waypoints(n=2, x_range=(10, 90), y_range=(10, 90), z_range=(10, 100), v=5)
     # Initial drone state
     init_state = create_initial_state()
 

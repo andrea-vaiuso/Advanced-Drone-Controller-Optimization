@@ -36,12 +36,9 @@ def plot_costs_trend(costs: list, save_path: str = None) -> None:
         plt.savefig(save_path)
 
     plt.show()
-    
 
 
-
-
-def log_step(params: Dict[str, Any], cost: float, log_path: str) -> None:
+def log_step(params: Dict[str, Any], cost: float, log_path: str, costs: dict = None) -> None:
     """Append a single optimization step to a JSON log file."""
     global last_time
     current = time()
@@ -56,6 +53,7 @@ def log_step(params: Dict[str, Any], cost: float, log_path: str) -> None:
             'elapsed': current - start_time,
             'delta': current - last_time,
         },
+        'costs': costs if costs is not None else {},
     }
     with open(log_path, 'a') as f:
         json.dump(entry, f)
@@ -162,3 +160,22 @@ def seconds_to_hhmmss(seconds: float) -> str:
     minutes = int((seconds % 3600) // 60)
     secs = int(seconds % 60)
     return f"{hours:02}:{minutes:02}:{secs:02}"
+
+def show_best_params(best_params, opt_output_path, global_best_cost, n_iter, simulation_time, tot_time):
+    print("Best parameters found:")
+    print("k_pid_yaw: (0.5, 1e-6, 0.1)")
+    print("k_pid_pos: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params['k_pid_pos']))
+    print("k_pid_alt: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params['k_pid_alt']))
+    print("k_pid_att: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params['k_pid_att']))
+    print("k_pid_hsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params['k_pid_hsp']))
+    print("k_pid_vsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params['k_pid_vsp']))
+    print("Best cost value: {:.4f}".format(global_best_cost))
+
+    with open(opt_output_path, 'w') as f:
+        f.write("Best parameters found:\n")
+        for k, v in best_params.items():
+            f.write(f"{k}: {v}\n")
+        f.write(f"Best cost value: {global_best_cost}\n")
+        f.write(f"Total optimization time: {seconds_to_hhmmss(tot_time)}\n")
+        f.write(f"N iterations: {n_iter}\n")
+        f.write(f"Max sim time: {simulation_time:.2f} seconds\n")

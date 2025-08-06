@@ -16,7 +16,12 @@ import main as mainfunc
 from Simulation import Simulation
 
 import opt_func
-from opt_func import log_step, calculate_costs, seconds_to_hhmmss, plot_costs_trend
+from opt_func import (
+    log_step,
+    calculate_costs, 
+    plot_costs_trend, 
+    show_best_params
+)
 
 costs = []
 best_costs = []
@@ -121,7 +126,7 @@ def main():
                 costs_sim = simulate_pid(gains, parameters, waypoints, world, thrust_max, simulation_time)
                 total_cost = costs_sim['total_cost']
                 costs.append(total_cost)
-                log_step(gains, total_cost, log_path)
+                log_step(gains, total_cost, log_path, costs_sim)
                 if total_cost < personal_best_cost[i]:
                     personal_best_cost[i] = total_cost
                     personal_best_pos[i] = particles_pos[i].copy()
@@ -138,33 +143,18 @@ def main():
                 particles_pos[i] = particles_pos[i] + particles_vel[i]
                 particles_pos[i] = np.clip(particles_pos[i], lower_bounds, upper_bounds)
             best_costs.append(global_best_cost)
-            print(f"Generation {gen+1}/{n_iter} | best_cost={global_best_cost:.4f}")
+            print(f"[ PSO ] Generation {gen+1}/{n_iter} | best_cost={global_best_cost:.4f}")
     except KeyboardInterrupt:
         print("Optimization interrupted by user.")
     finally:
         tot_time = time() - start_opt
         best_params = decode_particle(global_best_pos)
 
-        print("Best parameters found:")
-        print("k_pid_yaw: (0.5, 1e-6, 0.1)")
-        print("k_pid_pos: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params['k_pid_pos']))
-        print("k_pid_alt: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params['k_pid_alt']))
-        print("k_pid_att: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params['k_pid_att']))
-        print("k_pid_hsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params['k_pid_hsp']))
-        print("k_pid_vsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params['k_pid_vsp']))
-        print("Best cost value: {:.4f}".format(global_best_cost))
-
-        with open(opt_output_path, 'w') as f:
-            f.write("Best parameters found:\n")
-            for k, v in best_params.items():
-                f.write(f"{k}: {v}\n")
-            f.write(f"Best cost value: {global_best_cost}\n")
-            f.write(f"Total optimization time: {seconds_to_hhmmss(tot_time)}\n")
-            f.write(f"N iterations: {n_iter}\n")
-            f.write(f"Max sim time: {simulation_time:.2f} seconds\n")
+        show_best_params(best_params, opt_output_path, global_best_cost, n_iter, simulation_time, tot_time)
 
         plot_costs_trend(costs, save_path=opt_output_path.replace(".txt", "_costs.png"))
         plot_costs_trend(best_costs, save_path=opt_output_path.replace(".txt", "_best_costs.png"))
+
 
 if __name__ == "__main__":
     main()

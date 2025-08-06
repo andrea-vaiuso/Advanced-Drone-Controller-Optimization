@@ -42,6 +42,7 @@ from opt_func import (
     calculate_costs,
     seconds_to_hhmmss,
     plot_costs_trend,
+    show_best_params
 )
 
 
@@ -142,7 +143,7 @@ class PIDEnv(gym.Env):
 
     metadata = {"render.modes": []}
 
-    def __init__(self):
+    def __init__(self, verbose: bool = True, set_initial_obs: bool = True):
         super().__init__()
         self.action_space = spaces.Box(PB_LOW, PB_HIGH, dtype=np.float32)
         self.observation_space = spaces.Box(PB_LOW, PB_HIGH, dtype=np.float32)
@@ -167,14 +168,26 @@ class PIDEnv(gym.Env):
             ],
             dtype=np.float32,
         )
-        self.state = self.initial_obs.copy()
+        self.set_initial_obs = set_initial_obs
+        if self.set_initial_obs:
+            self.state = self.initial_obs.copy()
+        else:
+            self.state = np.zeros(DIM, dtype=np.float32)
+        self.current_step = 0
+        self.verbose = verbose
 
     def reset(self, *, seed: int | None = None, options: dict | None = None):  # type: ignore[override]
         super().reset(seed=seed)
-        self.state = self.initial_obs.copy()
+        if self.set_initial_obs:
+            self.state = self.initial_obs.copy()
+        else:
+            self.state = np.zeros(DIM, dtype=np.float32)
+        self.current_step = 0
         return self.state, {}
 
     def step(self, action: np.ndarray):  # type: ignore[override]
+        """Take a step in the environment with the given action."""
+        self.current_step += 1
         action = np.clip(action, PB_LOW, PB_HIGH)
         gains = decode_action(action)
         sim_costs = simulate_pid(gains)
@@ -182,7 +195,7 @@ class PIDEnv(gym.Env):
         reward = -total_cost
 
         # Logging and best tracking
-        log_step(gains, total_cost, log_path)
+        log_step(gains, total_cost, log_path, sim_costs)
         costs.append(total_cost)
         global best_cost, best_params
         if total_cost < best_cost:
@@ -194,6 +207,7 @@ class PIDEnv(gym.Env):
         terminated = True  # one-step episode
         truncated = False
         info = {"costs": sim_costs}
+        if self.verbose: print(f"[ TD3 ] Step ({self.current_step}/{total_timesteps}) completed: total_cost={total_cost:.4f}, best_cost={best_cost:.4f}, costs: {sim_costs}")
         return self.state, reward, terminated, truncated, info
 
 
@@ -205,7 +219,7 @@ class PIDEnv(gym.Env):
 def main() -> None:
     """Run PID optimization using TD3."""
 
-    env = PIDEnv()
+    env = PIDEnv(verbose=True)
 
     # Action noise for exploration
     action_noise = NormalActionNoise(
@@ -216,7 +230,6 @@ def main() -> None:
         "MlpPolicy",
         env,
         action_noise=action_noise,
-        verbose=0,
     )
 
     start_opt = time()
@@ -232,35 +245,7 @@ def main() -> None:
             print("No evaluations were performed.")
             return
 
-        print("Best parameters found:")
-        print("k_pid_yaw: (0.5, 1e-6, 0.1)")
-        print(
-            "k_pid_pos: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params["k_pid_pos"])
-        )
-        print(
-            "k_pid_alt: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params["k_pid_alt"])
-        )
-        print(
-            "k_pid_att: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params["k_pid_att"])
-        )
-        print(
-            "k_pid_hsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params["k_pid_hsp"])
-        )
-        print(
-            "k_pid_vsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params["k_pid_vsp"])
-        )
-        print(f"Best cost value: {best_cost:.4f}")
-
-        with open(opt_output_path, "w") as f:
-            f.write("Best parameters found:\n")
-            for k, v in best_params.items():
-                f.write(f"{k}: {v}\n")
-            f.write(f"Best cost value: {best_cost}\n")
-            f.write(
-                f"Total optimization time: {seconds_to_hhmmss(tot_time)}\n"
-            )
-            f.write(f"N iterations: {len(costs)}\n")
-            f.write(f"Max sim time: {simulation_time:.2f} seconds\n")
+        show_best_params(best_params, opt_output_path, best_cost, len(costs), simulation_time, tot_time)
 
         # Save plots of cost trends
         plot_costs_trend(costs, save_path=opt_output_path.replace(".txt", "_costs.png"))

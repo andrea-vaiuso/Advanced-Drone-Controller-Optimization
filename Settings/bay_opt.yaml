@@ -1,6 +1,6 @@
 # Bayesian optimization parameters
-n_iter: 1500
-init_points: 20
+n_iter: 3000
+init_points: 0
 simulation_time: 150
 pbounds:
   kp_pos: [1e-4, 10]

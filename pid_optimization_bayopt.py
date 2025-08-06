@@ -18,7 +18,13 @@ from Simulation import Simulation
 
 from plotting_functions import plot3DAnimation
 import opt_func
-from opt_func import log_step, calculate_costs, seconds_to_hhmmss, plot_costs_trend
+from opt_func import (
+    log_step, 
+    calculate_costs, 
+    seconds_to_hhmmss, 
+    plot_costs_trend, 
+    show_best_params
+)
 
 # Optimization parameters loaded from YAML
 with open(os.path.join('Settings', 'bay_opt.yaml'), 'r') as f:
@@ -115,7 +121,7 @@ def objective(kp_pos, ki_pos, kd_pos,
     n_waypoints_completed = sim_costs['n_waypoints_completed']
     tot_waypoints = sim_costs['tot_waypoints']
 
-    log_step(params, total_cost, log_path)
+    log_step(params, total_cost, log_path, sim_costs)
     target = -total_cost  # bayes_opt maximizes
 
     # If this target is better than the best so far, update the file
@@ -138,7 +144,7 @@ def objective(kp_pos, ki_pos, kd_pos,
                 f.write(f"{k}: {v}\n")
             f.write(f"target = {best_target}\n")
 
-    print(f"{iteration}/{n_iter}: cost={total_cost:.4f}, best_cost={best_target:.4f}, time_cost={time_cost:.2f}, " + \
+    print(f"[ BAY_OPT ] {iteration}/{n_iter}: cost={total_cost:.4f}, best_cost={best_target:.4f}, time_cost={time_cost:.2f}, " + \
            f"distance_cost={final_distance_cost:.2f}, oscillation_cost={oscillation_cost:.2f}, completition_cost={completition_cost:.2f}, overshoot_cost={overshoot_cost:.2f}, power_cost={power_cost:.2f}, noise_cost={noise_cost:.2f} | completed_targets={n_waypoints_completed}/{tot_waypoints}")
     costs.append(total_cost)
     best_costs.append(best_target)
@@ -207,23 +213,9 @@ def main():
             'k_pid_hsp': (best['kp_hsp'], best['ki_hsp'], best['kd_hsp']),
             'k_pid_vsp': (best['kp_vsp'], best['ki_vsp'], best['kd_vsp']),
         }
+        global_best_cost = optimizer.max['target']
 
-        print("k_pid_yaw: (0.5, 1e-6, 0.1)")
-        print("k_pid_pos: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_pos']))
-        print("k_pid_alt: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_alt']))
-        print("k_pid_att: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_att']))
-        print("k_pid_hsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_hsp']))
-        print("k_pid_vsp: [{:.5g}, {:.5g}, {:.5g}]".format(*best_formatted['k_pid_vsp']))
-        print("Best target value: {:.4f}".format(optimizer.max['target']))
-
-        with open(opt_output_path, 'w') as f:
-            f.write("Best parameters found:\n")
-            for k, v in best_formatted.items():
-                f.write(f"{k}: {v}\n")
-            f.write(f"Best target value: {optimizer.max['target']}\n")
-            f.write(f"Total optimization time: {seconds_to_hhmmss(tot_time)}\n")
-            f.write(f"N iterations: {n_iter}\n")
-            f.write(f"Max sim time: {simulation_time:.2f} seconds\n")
+        show_best_params(best_formatted, opt_output_path, global_best_cost, n_iter, simulation_time, tot_time)
 
         plot_costs_trend(costs, save_path=opt_output_path.replace(".txt", "_costs.png"))
         plot_costs_trend(best_costs, save_path=opt_output_path.replace(".txt", "_best_costs.png"))

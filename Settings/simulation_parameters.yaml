@@ -53,6 +53,14 @@ k_pid_vsp: [150, 10, 1]
 # k_pid_hsp: [0.025541, 1e-10, 1e-10]
 # k_pid_vsp: [1759, 0.0028366, 1.8956]
 
+# PID controller settings (yaw remain fixed) # Obtained with Particle Swarm Optimization (recent edits v2) # 19.56 dB
+# k_pid_yaw: [0.5, 1e-6, 0.1]
+# k_pid_pos: [0.49964, 0.081855, 0.0012613]
+# k_pid_alt: [1.169, 0, 0.32441]
+# k_pid_att: [1, 0.0001, 0.20571]
+# k_pid_hsp: [0.097351, 0.0048407, 0]
+# k_pid_vsp: [300, 9.6777, 0.0001]
+
 # Drone parameters
 m: 5.2
 I: [3.8e-3, 3.8e-3, 7.1e-3]
