@@ -7,7 +7,7 @@
 import os
 from datetime import datetime
 from time import time
-from typing import Dict, Optional
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 import yaml
@@ -130,7 +130,7 @@ class GAPIDOptimizer:
         best_idx = idxs[np.argmin(fitness[idxs])]
         return population[best_idx]
 
-    def _crossover(self, parent1: np.ndarray, parent2: np.ndarray, rng: np.random.Generator) -> tuple[np.ndarray, np.ndarray]:
+    def _crossover(self, parent1: np.ndarray, parent2: np.ndarray, rng: np.random.Generator) -> Tuple[np.ndarray, np.ndarray]:
         """Perform single-point crossover between two parents."""
         if rng.random() < self.crossover_rate:
             point = rng.integers(1, self.dim)

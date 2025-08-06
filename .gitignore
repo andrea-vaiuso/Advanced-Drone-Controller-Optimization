@@ -8,3 +8,4 @@ __pycache__/
 /Optimizations/PSO
 /Optimizations/TD3
 /Optimizations/SAC
+/Optimizations/GA
