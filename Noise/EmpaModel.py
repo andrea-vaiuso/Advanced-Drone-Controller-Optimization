@@ -8,11 +8,9 @@ def convert_rpm_to_scaled_radians(rpm):
     return (rpm * 2 * np.pi / 60) / 10
 
 def calculate_loudness(SWL):
-    """Compute loudness by operating in the linear power domain."""
-    swl_lin = 10 ** (SWL / 10)
-    swl_rms = np.sqrt(np.mean(swl_lin ** 2))
-    swl_loudness_db = 10 * np.log10(swl_rms)
-    return swl_loudness_db
+    SWL_rms = np.sqrt(np.mean(SWL**2))
+    SWL_loudness_db = 20 * np.log10(SWL_rms)
+    return SWL_loudness_db
 
 lw_ref = np.array([58.06334401, 63.39435536, 89.61406778, 87.6743877 , 88.47605171,
        67.1866716 , 94.21653901, 91.14444512, 81.34365872, 75.15627989,
@@ -167,8 +165,8 @@ class NoiseModel:
 
         predicted_Lw_total = self.predict(input_data)
         swl = calculate_loudness(predicted_Lw_total[0])
-        spl = swl - 10 * np.log10(4 * np.pi * (distance + 1e-4) ** 2)
-        return spl, swl
+        spl =  swl - abs(10 * np.log10(1/(4 * np.pi * ((distance+1e-4)**2))))
+        return abs(spl), abs(swl)
 
 
     def save_model(self, a, b, c, d, filename):
