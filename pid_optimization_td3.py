@@ -7,21 +7,16 @@
 
 from __future__ import annotations
 
-import os
-from datetime import datetime
 from time import time
 from typing import Dict, Optional
 
-import yaml
+import main as mainfunc
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
 from stable_baselines3 import TD3
 from stable_baselines3.common.noise import NormalActionNoise
 
-from World import World
-import main as mainfunc
-import opt_func
 from opt_func import (
     log_step,
     plot_costs_trend,
@@ -30,7 +25,10 @@ from opt_func import (
 )
 
 
-class TD3PIDOptimizer:
+from optimizer import Optimizer
+
+
+class TD3PIDOptimizer(Optimizer):
     """Optimize PID gains using a Twin-Delayed DDPG agent.
 
     Parameters
@@ -58,36 +56,25 @@ class TD3PIDOptimizer:
         verbose: bool = True,
         set_initial_obs: bool = True,
         simulate_wind_flag: bool = False,
+        study_name: str = "",
         waypoints: Optional[list] = None,
     ) -> None:
-        with open(config_file, "r") as f:
-            td3_cfg = yaml.safe_load(f)
+        super().__init__(
+            "TD3",
+            config_file,
+            parameters_file,
+            verbose=verbose,
+            set_initial_obs=set_initial_obs,
+            simulate_wind_flag=simulate_wind_flag,
+            study_name=study_name,
+            waypoints=waypoints,
+        )
+
+        td3_cfg = self.cfg
 
         self.simulation_time = float(td3_cfg.get("simulation_time", 150))
         self.total_timesteps = int(td3_cfg.get("total_timesteps", 1000))
         self.action_noise_sigma = float(td3_cfg.get("action_noise_sigma", 0.1))
-
-        self.verbose = verbose
-        self.set_initial_obs = set_initial_obs
-        self.simulate_wind_flag = simulate_wind_flag
-
-        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.base_dir = os.path.join("Optimizations", "TD3", self.timestamp)
-        os.makedirs(self.base_dir, exist_ok=True)
-        self.opt_output_path = os.path.join(self.base_dir, "best_parameters.txt")
-        self.log_path = os.path.join(self.base_dir, "optimization_log.json")
-
-        # Initialize logging timers in opt_func
-        opt_func.start_time = time()
-        opt_func.last_time = opt_func.start_time
-
-        self.parameters = mainfunc.load_parameters(parameters_file)
-        self.thrust_max = mainfunc.get_max_thrust_from_rotor_model(self.parameters)
-        self.waypoints = (
-            waypoints if waypoints is not None else mainfunc.create_training_waypoints()
-        )
-        self.world = World.load_world(self.parameters["world_data_path"])
-        self.noise_model = mainfunc.load_dnn_noise_model(self.parameters)
 
         pbounds_cfg = td3_cfg.get("pbounds", {})
         self.pb_names = list(pbounds_cfg.keys())

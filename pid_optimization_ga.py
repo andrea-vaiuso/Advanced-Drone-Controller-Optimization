@@ -4,17 +4,12 @@
 # Description: Class-based Genetic Algorithm for PID gain tuning.
 """Genetic Algorithm for PID tuning packaged into a class."""
 
-import os
-from datetime import datetime
 from time import time
 from typing import Dict, Optional, Tuple
 
 import numpy as np
-import yaml
 
-from World import World
 import main as mainfunc
-import opt_func
 from opt_func import (
     log_step,
     plot_costs_trend,
@@ -22,8 +17,10 @@ from opt_func import (
     run_simulation,
 )
 
+from optimizer import Optimizer
 
-class GAPIDOptimizer:
+
+class GAPIDOptimizer(Optimizer):
     """Optimize PID gains using a Genetic Algorithm.
 
     Parameters
@@ -51,10 +48,21 @@ class GAPIDOptimizer:
         verbose: bool = True,
         set_initial_obs: bool = True,
         simulate_wind_flag: bool = False,
+        study_name: str = "",
         waypoints: Optional[list] = None,
     ) -> None:
-        with open(config_file, "r") as f:
-            ga_cfg = yaml.safe_load(f)
+        super().__init__(
+            "GA",
+            config_file,
+            parameters_file,
+            verbose=verbose,
+            set_initial_obs=set_initial_obs,
+            simulate_wind_flag=simulate_wind_flag,
+            study_name=study_name,
+            waypoints=waypoints,
+        )
+
+        ga_cfg = self.cfg
 
         self.n_generations = int(ga_cfg.get("n_generations", 100))
         self.population_size = int(ga_cfg.get("population_size", 30))
@@ -63,27 +71,6 @@ class GAPIDOptimizer:
         self.tournament_size = int(ga_cfg.get("tournament_size", 3))
         self.elite_fraction = float(ga_cfg.get("elite_fraction", 0.1))
         self.simulation_time = float(ga_cfg.get("simulation_time", 150))
-
-        self.verbose = verbose
-        self.set_initial_obs = set_initial_obs
-        self.simulate_wind_flag = simulate_wind_flag
-
-        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.base_dir = os.path.join("Optimizations", "GA", self.timestamp)
-        os.makedirs(self.base_dir, exist_ok=True)
-        self.opt_output_path = os.path.join(self.base_dir, "best_parameters.txt")
-        self.log_path = os.path.join(self.base_dir, "optimization_log.json")
-
-        opt_func.start_time = time()
-        opt_func.last_time = opt_func.start_time
-
-        self.parameters = mainfunc.load_parameters(parameters_file)
-        self.thrust_max = mainfunc.get_max_thrust_from_rotor_model(self.parameters)
-        self.waypoints = (
-            waypoints if waypoints is not None else mainfunc.create_training_waypoints()
-        )
-        self.world = World.load_world(self.parameters["world_data_path"])
-        self.noise_model = mainfunc.load_dnn_noise_model(self.parameters)
 
         pbounds_cfg = ga_cfg.get("pbounds", {})
         self.pbounds = {k: tuple(v) for k, v in pbounds_cfg.items()}

@@ -4,18 +4,13 @@
 # Description: Class-based Bayesian Optimization for PID gain tuning.
 """Bayesian Optimization for PID tuning packaged into a class."""
 
-import os
-from datetime import datetime
 from time import time
 from typing import Dict, Optional
 
-import yaml
 import numpy as np
 from bayes_opt import BayesianOptimization
 
-from World import World
 import main as mainfunc
-import opt_func
 from opt_func import (
     log_step,
     plot_costs_trend,
@@ -23,8 +18,10 @@ from opt_func import (
     run_simulation,
 )
 
+from optimizer import Optimizer
 
-class BayesianPIDOptimizer:
+
+class BayesianPIDOptimizer(Optimizer):
     """Optimize PID gains using Bayesian Optimization.
 
     Parameters
@@ -52,35 +49,25 @@ class BayesianPIDOptimizer:
         verbose: bool = True,
         set_initial_obs: bool = True,
         simulate_wind_flag: bool = False,
+        study_name: str = "",
         waypoints: Optional[list] = None,
     ) -> None:
-        with open(config_file, "r") as f:
-            bayopt_cfg = yaml.safe_load(f)
+        super().__init__(
+            "Bayesian",
+            config_file,
+            parameters_file,
+            verbose=verbose,
+            set_initial_obs=set_initial_obs,
+            simulate_wind_flag=simulate_wind_flag,
+            study_name=study_name,
+            waypoints=waypoints,
+        )
+
+        bayopt_cfg = self.cfg
 
         self.n_iter = int(bayopt_cfg.get("n_iter", 1500))
         self.init_points = int(bayopt_cfg.get("init_points", 20))
         self.simulation_time = float(bayopt_cfg.get("simulation_time", 150))
-
-        self.verbose = verbose
-        self.set_initial_obs = set_initial_obs
-        self.simulate_wind_flag = simulate_wind_flag
-
-        self.timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.base_dir = os.path.join("Optimizations", "Bayesian", self.timestamp)
-        os.makedirs(self.base_dir, exist_ok=True)
-        self.opt_output_path = os.path.join(self.base_dir, "best_parameters.txt")
-        self.log_path = os.path.join(self.base_dir, "optimization_log.json")
-
-        opt_func.start_time = time()
-        opt_func.last_time = opt_func.start_time
-
-        self.parameters = mainfunc.load_parameters(parameters_file)
-        self.thrust_max = mainfunc.get_max_thrust_from_rotor_model(self.parameters)
-        self.waypoints = (
-            waypoints if waypoints is not None else mainfunc.create_training_waypoints()
-        )
-        self.world = World.load_world(self.parameters["world_data_path"])
-        self.noise_model = mainfunc.load_dnn_noise_model(self.parameters)
 
         pbounds_cfg = bayopt_cfg.get("pbounds", {})
         self.pbounds = {k: tuple(v) for k, v in pbounds_cfg.items()}

@@ -8,7 +8,7 @@
 ## Overview
 This project simulates a quadcopter and optimizes its cascade PID controller. The simulation includes:
 
-- A neural-network rotor model
+- A neural-network rotor model based on Blade Element Momentum Theory (BEMT)
 - An acoustic noise model
 - An optional Dryden turbulence model
 
@@ -17,6 +17,7 @@ Several optimization strategies are provided:
 - Bayesian Optimization
 - Particle Swarm Optimization
 - Genetic Algorithm
+- Grey Wolf Optimizer (GWO)
 - Soft Actor–Critic (SAC)
 - Twin–Delayed DDPG (TD3)
 
@@ -40,6 +41,7 @@ PID tuning examples:
 python pid_optimization_bayopt.py  # Bayesian optimization
 python pid_optimization_pso.py     # Particle Swarm Optimization
 python pid_optimization_ga.py      # Genetic Algorithm
+python pid_optimization_gwo.py     # Grey Wolf Optimizer
 python pid_optimization_sac.py     # Soft Actor–Critic
 python pid_optimization_td3.py     # Twin–Delayed DDPG
 ```
@@ -139,6 +141,7 @@ Contents include:
 - `pid_optimization_bayopt.py` – Bayesian optimization
 - `pid_optimization_pso.py` – Particle Swarm Optimization
 - `pid_optimization_ga.py` – Genetic Algorithm
+- `pid_optimization_gwo.py` – Grey Wolf Optimizer
 - `pid_optimization_sac.py` – Soft Actor–Critic
 - `pid_optimization_td3.py` – Twin–Delayed DDPG
 - `world_creation_gui.py` – optional GUI for world editing
