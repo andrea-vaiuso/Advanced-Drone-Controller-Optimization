@@ -46,7 +46,7 @@ def main():
 
     # Initialize the simulation
     sim = create_simulation(drone, world, waypoints, parameters, noise_model, generate_sound_map=True)
-    sim.setWind(max_simulation_time=parameters['simulation_time'], dt=parameters['dt'], height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed=None)
+    sim.setWind(max_simulation_time=parameters['simulation_time'], dt=parameters['dt'], height=100, airspeed=10, turbulence_level=50, plot_wind_signal=False, seed=None)
     sim.startSimulation(stop_at_target=False, use_static_target=True, verbose=True)
 
     # Plot 3D animation of the drone's trajectory
