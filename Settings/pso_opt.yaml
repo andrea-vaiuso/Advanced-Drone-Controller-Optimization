@@ -4,7 +4,7 @@ swarm_size: 30
 inertia_weight: 0.7
 cognitive_coeff: 1.5
 social_coeff: 1.5
-simulation_time: 150
+
 pbounds:
   kp_pos: [1e-3, 2]
   ki_pos: [0, 1]

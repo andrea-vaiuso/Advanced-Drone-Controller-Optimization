@@ -51,6 +51,7 @@ class GWOPIDOptimizer(Optimizer):
         simulate_wind_flag: bool = False,
         study_name: str = "",
         waypoints: Optional[list] = None,
+        simulation_time: int = 150,
     ) -> None:
         super().__init__(
             "GWO",
@@ -61,13 +62,13 @@ class GWOPIDOptimizer(Optimizer):
             simulate_wind_flag=simulate_wind_flag,
             study_name=study_name,
             waypoints=waypoints,
+            simulation_time=simulation_time,
         )
 
         gwo_cfg = self.cfg
 
         self.n_iter = int(gwo_cfg.get("n_iter", 100))
         self.pack_size = int(gwo_cfg.get("pack_size", 30))
-        self.simulation_time = float(gwo_cfg.get("simulation_time", 150))
 
         pbounds_cfg = gwo_cfg.get("pbounds", {})
         self.pbounds = {k: tuple(v) for k, v in pbounds_cfg.items()}

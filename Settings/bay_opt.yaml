@@ -1,7 +1,7 @@
 # Bayesian optimization parameters
 n_iter: 3000
 init_points: 0
-simulation_time: 150
+
 pbounds:
   kp_pos: [1e-3, 2]
   ki_pos: [0, 1]

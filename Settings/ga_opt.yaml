@@ -5,7 +5,7 @@ crossover_rate: 0.8
 mutation_rate: 0.1
 tournament_size: 3
 elite_fraction: 0.1
-simulation_time: 150
+
 pbounds:
   kp_pos: [1e-3, 2]
   ki_pos: [0, 1]

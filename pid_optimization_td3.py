@@ -58,6 +58,7 @@ class TD3PIDOptimizer(Optimizer):
         simulate_wind_flag: bool = False,
         study_name: str = "",
         waypoints: Optional[list] = None,
+        simulation_time: int = 150,
     ) -> None:
         super().__init__(
             "TD3",
@@ -68,11 +69,11 @@ class TD3PIDOptimizer(Optimizer):
             simulate_wind_flag=simulate_wind_flag,
             study_name=study_name,
             waypoints=waypoints,
+            simulation_time=simulation_time,
         )
 
         td3_cfg = self.cfg
 
-        self.simulation_time = float(td3_cfg.get("simulation_time", 150))
         self.total_timesteps = int(td3_cfg.get("total_timesteps", 1000))
         self.action_noise_sigma = float(td3_cfg.get("action_noise_sigma", 0.1))
 

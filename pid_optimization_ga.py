@@ -50,6 +50,7 @@ class GAPIDOptimizer(Optimizer):
         simulate_wind_flag: bool = False,
         study_name: str = "",
         waypoints: Optional[list] = None,
+        simulation_time: int = 150,
     ) -> None:
         super().__init__(
             "GA",
@@ -60,6 +61,7 @@ class GAPIDOptimizer(Optimizer):
             simulate_wind_flag=simulate_wind_flag,
             study_name=study_name,
             waypoints=waypoints,
+            simulation_time=simulation_time,
         )
 
         ga_cfg = self.cfg
@@ -70,7 +72,6 @@ class GAPIDOptimizer(Optimizer):
         self.mutation_rate = float(ga_cfg.get("mutation_rate", 0.1))
         self.tournament_size = int(ga_cfg.get("tournament_size", 3))
         self.elite_fraction = float(ga_cfg.get("elite_fraction", 0.1))
-        self.simulation_time = float(ga_cfg.get("simulation_time", 150))
 
         pbounds_cfg = ga_cfg.get("pbounds", {})
         self.pbounds = {k: tuple(v) for k, v in pbounds_cfg.items()}

@@ -51,6 +51,7 @@ class BayesianPIDOptimizer(Optimizer):
         simulate_wind_flag: bool = False,
         study_name: str = "",
         waypoints: Optional[list] = None,
+        simulation_time: int = 150,
     ) -> None:
         super().__init__(
             "Bayesian",
@@ -61,13 +62,13 @@ class BayesianPIDOptimizer(Optimizer):
             simulate_wind_flag=simulate_wind_flag,
             study_name=study_name,
             waypoints=waypoints,
+            simulation_time=simulation_time,
         )
 
         bayopt_cfg = self.cfg
 
         self.n_iter = int(bayopt_cfg.get("n_iter", 1500))
         self.init_points = int(bayopt_cfg.get("init_points", 20))
-        self.simulation_time = float(bayopt_cfg.get("simulation_time", 150))
 
         pbounds_cfg = bayopt_cfg.get("pbounds", {})
         self.pbounds = {k: tuple(v) for k, v in pbounds_cfg.items()}

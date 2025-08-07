@@ -50,6 +50,7 @@ class Optimizer:
         simulate_wind_flag: bool = False,
         study_name: str = "",
         waypoints: Optional[list] = None,
+        simulation_time: int = 150,
     ) -> None:
         with open(config_file, "r") as f:
             self.cfg = yaml.safe_load(f)
@@ -75,6 +76,7 @@ class Optimizer:
         )
         self.world = World.load_world(self.parameters["world_data_path"])
         self.noise_model = mainfunc.load_dnn_noise_model(self.parameters)
+        self.simulation_time = simulation_time
 
     def optimize(self) -> None:
         """Run the optimization routine. Must be implemented by subclasses."""

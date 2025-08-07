@@ -57,6 +57,7 @@ class SACPIDOptimizer(Optimizer):
         simulate_wind_flag: bool = False,
         study_name: str = "",
         waypoints: Optional[list] = None,
+        simulation_time: int = 150,
     ) -> None:
         super().__init__(
             "SAC",
@@ -67,11 +68,11 @@ class SACPIDOptimizer(Optimizer):
             simulate_wind_flag=simulate_wind_flag,
             study_name=study_name,
             waypoints=waypoints,
+            simulation_time=simulation_time,
         )
 
         sac_cfg = self.cfg
 
-        self.simulation_time = float(sac_cfg.get("simulation_time", 150))
         self.total_timesteps = int(sac_cfg.get("total_timesteps", 1000))
 
         pbounds_cfg = sac_cfg.get("pbounds", {})

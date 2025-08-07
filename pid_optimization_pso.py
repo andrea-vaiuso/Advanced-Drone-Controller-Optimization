@@ -51,6 +51,7 @@ class PSOPIDOptimizer(Optimizer):
         simulate_wind_flag: bool = False,
         study_name: str = "",
         waypoints: Optional[list] = None,
+        simulation_time: int = 150,
     ) -> None:
         super().__init__(
             "PSO",
@@ -61,6 +62,7 @@ class PSOPIDOptimizer(Optimizer):
             simulate_wind_flag=simulate_wind_flag,
             study_name=study_name,
             waypoints=waypoints,
+            simulation_time=simulation_time,
         )
 
         pso_cfg = self.cfg
@@ -70,7 +72,6 @@ class PSOPIDOptimizer(Optimizer):
         self.w = float(pso_cfg.get("inertia_weight", 0.7))
         self.c1 = float(pso_cfg.get("cognitive_coeff", 1.5))
         self.c2 = float(pso_cfg.get("social_coeff", 1.5))
-        self.simulation_time = float(pso_cfg.get("simulation_time", 150))
 
         pbounds_cfg = pso_cfg.get("pbounds", {})
         self.pbounds = {k: tuple(v) for k, v in pbounds_cfg.items()}

@@ -46,7 +46,7 @@ def main():
 
     # Initialize the simulation
     sim = create_simulation(drone, world, waypoints, parameters, noise_model, generate_sound_map=True)
-    sim.setWind(max_simulation_time=parameters['simulation_time'], dt=parameters['dt'], height=100, airspeed=10, turbulence_level=100, plot_wind_signal=False, seed=None)
+    sim.setWind(max_simulation_time=parameters['simulation_time'], dt=parameters['dt'], height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed=None)
     sim.startSimulation(stop_at_target=False, use_static_target=True, verbose=True)
 
     # Plot 3D animation of the drone's trajectory
@@ -366,7 +366,23 @@ def generate_log_dict(sim: Simulation) -> dict:
             'linestyle': '-',
             'label': 'Thrust',
             'showgrid': True
-        }
+        },
+        'Power': {
+            'data': np.array(sim.power_history),
+            'ylabel': 'Power (W)',
+            'color': 'green',
+            'linestyle': '-',
+            'label': 'Power',
+            'showgrid': True
+        },
+        'Wind Thrust': {
+            'data': np.array(sim.delta_t_history),
+            'ylabel': 'Wind Thrust (N)',
+            'color': 'cyan',
+            'linestyle': '-',
+            'label': 'Wind Thrust',
+            'showgrid': True
+        },
     }
 
 if __name__ == "__main__":

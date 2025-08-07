@@ -1,6 +1,5 @@
 # TD3 optimization parameters
 total_timesteps: 3000
-simulation_time: 150
 action_noise_sigma: 0.1
 pbounds:
   kp_pos: [1e-3, 2]

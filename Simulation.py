@@ -74,7 +74,7 @@ class Simulation:
         self.swl_history = []
         self.thrust_history = []
         self.power_history = []
-        self.thrust_no_wind_history = []
+        self.delta_t_history = []
         self.distance_history = []
         self.seg_idx_history = []
 
@@ -128,12 +128,20 @@ class Simulation:
 
         # Main simulation loop
         for step in range(num_steps):
+            current_time = step * self.dt
+
+            # Update target
             if use_static_target:
-                target_dynamic, self.current_seg_idx, seg_end = self._compute_static_target(
+                target_position, self.current_seg_idx, seg_end = self._compute_static_target(
                     self.current_seg_idx, seg_end)
             else:
-                target_dynamic, self.current_seg_idx, seg_start, seg_end, v_des = self._compute_dynamic_target(
+                target_position, self.current_seg_idx, seg_start, seg_end, v_des = self._compute_dynamic_target(
                     self.current_seg_idx, seg_start, seg_end, v_des, k_lookahead)
+            
+
+            # Update drone state
+            self.drone.update_state({'x': target_position[0], 'y': target_position[1], 'z': target_position[2]},
+                                     self.dt, verbose=False)
             
             # Update wind if set
             if self.simulate_wind and len(self.wind_signals) >= 3:
@@ -142,16 +150,12 @@ class Simulation:
                                             self.wind_signals[2][step]])
                 self.drone.update_wind(wind_xyz_signal, simulate_wind=True)
 
-            # Update drone state
-            self.drone.update_state({'x': target_dynamic[0], 'y': target_dynamic[1], 'z': target_dynamic[2]},
-                                     self.dt, verbose=False)
-
             
-            current_time = step * self.dt
+            
 
             # Store data at specified intervals
             if step % self.frame_skip == 0:
-                self._store_log_data(current_time, target_dynamic)
+                self._store_log_data(current_time, target_position)
 
                 if self.noise_model:
                     self._compute_noise_emissions()
@@ -358,7 +362,7 @@ class Simulation:
         self.spl_history.clear()
         self.swl_history.clear()
         self.thrust_history.clear()
-        self.thrust_no_wind_history.clear()
+        self.delta_t_history.clear()
         self.distance_history.clear()
         self.seg_idx_history.clear()
 
@@ -382,7 +386,7 @@ class Simulation:
         self.vertical_speed_history.append(self.drone.state['vel'][2])
         self.targets.append(target_dynamic.copy())
         self.thrust_history.append(self.drone.thrust)
-        self.thrust_no_wind_history.append(self.drone.thrust_no_wind)
+        self.delta_t_history.append(self.drone.delta_T)
         self.power_history.append(np.sum(self.drone.state['power']))
 
         idx = min(self.current_seg_idx, len(self.waypoints)-1)
