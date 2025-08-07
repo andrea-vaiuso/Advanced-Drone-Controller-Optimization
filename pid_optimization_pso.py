@@ -180,6 +180,7 @@ class PSOPIDOptimizer:
                     if total_cost < self.global_best_cost:
                         self.global_best_cost = total_cost
                         self.global_best_pos = particles_pos[i].copy()
+                    self.best_costs.append(self.global_best_cost)
                 for i in range(self.swarm_size):
                     r1 = rng.random(self.dim)
                     r2 = rng.random(self.dim)
@@ -192,7 +193,6 @@ class PSOPIDOptimizer:
                     particles_pos[i] = np.clip(
                         particles_pos[i], self.lower_bounds, self.upper_bounds
                     )
-                self.best_costs.append(self.global_best_cost)
         except KeyboardInterrupt:
             print("Optimization interrupted by user.")
         finally:
@@ -212,10 +212,12 @@ class PSOPIDOptimizer:
             plot_costs_trend(
                 self.costs,
                 save_path=self.opt_output_path.replace(".txt", "_costs.png"),
+                alg_name="Particle Swarm Optimization",
             )
             plot_costs_trend(
                 self.best_costs,
                 save_path=self.opt_output_path.replace(".txt", "_best_costs.png"),
+                alg_name="Particle Swarm Optimization",
             )
 
 

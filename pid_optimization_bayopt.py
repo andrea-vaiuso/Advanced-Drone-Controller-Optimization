@@ -200,10 +200,12 @@ class BayesianPIDOptimizer:
             plot_costs_trend(
                 self.costs,
                 save_path=self.opt_output_path.replace(".txt", "_costs.png"),
+                alg_name="Bayesian Optimization",
             )
             plot_costs_trend(
                 self.best_costs,
                 save_path=self.opt_output_path.replace(".txt", "_best_costs.png"),
+                alg_name="Bayesian Optimization",
             )
 
 

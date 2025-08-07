@@ -201,7 +201,7 @@ class GAPIDOptimizer:
                     if total_cost < self.best_cost:
                         self.best_cost = total_cost
                         self.best_individual = population[i].copy()
-                self.best_costs.append(self.best_cost)
+                    self.best_costs.append(self.best_cost)
 
                 # Build next generation
                 new_population = []
@@ -236,10 +236,12 @@ class GAPIDOptimizer:
             plot_costs_trend(
                 self.costs,
                 save_path=self.opt_output_path.replace(".txt", "_costs.png"),
+                alg_name="Genetic Algorithm",
             )
             plot_costs_trend(
                 self.best_costs,
                 save_path=self.opt_output_path.replace(".txt", "_best_costs.png"),
+                alg_name="Genetic Algorithm",
             )
 
 

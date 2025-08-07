@@ -14,7 +14,7 @@ start_time = time()
 last_time = start_time
 
 
-def plot_costs_trend(costs: list, save_path: str = None) -> None:
+def plot_costs_trend(costs: list, save_path: str = None, alg_name: str = "") -> None:
     """
     Plot the trend of costs over iterations. If `save_path` is provided, save the plot to that path.
     A red marker indicates the best cost found, while a blue line shows the trend.
@@ -27,7 +27,7 @@ def plot_costs_trend(costs: list, save_path: str = None) -> None:
     best_cost = min(costs)
     best_idx = costs.index(best_cost)
     plt.scatter(best_idx, best_cost, color='red', label='Best Cost', zorder=5, marker='x', s=100)
-    plt.title('Cost Trend Over Iterations')
+    plt.title(f'Cost Trend Over Iterations - ({alg_name})')
     plt.xlabel('Iteration')
     plt.ylabel('Cost')
     plt.legend()
