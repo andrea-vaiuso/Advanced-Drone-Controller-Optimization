@@ -92,6 +92,7 @@ def calculate_costs(sim: Simulation, simulation_time: float,
                     thrust_oscillation_weight: float = 1e-5,
                     power_weight: float = 1e-4,
                     noise_weight: float = 6e-23,
+                    annoyance_weight: float = 0.1,
                     print_costs: bool = False) -> tuple:
 
     """Compute the cost metrics used for PID gain optimization."""
@@ -123,11 +124,14 @@ def calculate_costs(sim: Simulation, simulation_time: float,
     completition_cost = get_completion_cost(sim, completition_weight)
 
     overshoot_cost = get_overshoot_cost(sim, overshoot_weight)
-    p = 12  # norm order for noise cost
-    if len(sim.swl_history) > 0:
-        swl = np.array(sim.swl_history, dtype=float)
-        noise_cost = noise_weight * (np.linalg.norm(swl, ord=p)**p + np.max(swl))
+    if len(sim.spl_history) > 0:
+        spl = np.array(sim.spl_history, dtype=float)
+        L_eq = 10 * np.log10(np.mean(10 ** (spl / 10)))
+        loudness_sone = np.mean(2 ** ((spl - 40) / 10))
+        noise_cost = noise_weight * L_eq + annoyance_weight * loudness_sone
     else:
+        L_eq = 0.0
+        loudness_sone = 0.0
         noise_cost = 0.0
 
     total_cost = time_cost + \
@@ -150,6 +154,8 @@ def calculate_costs(sim: Simulation, simulation_time: float,
         'overshoot_cost': overshoot_cost,
         'power_cost': power_cost,
         'noise_cost': noise_cost,
+        'noise_L_eq': L_eq,
+        'noise_annoyance': loudness_sone,
         'n_waypoints_completed': sim.current_seg_idx,
         'tot_waypoints': len(sim.waypoints),
     }
