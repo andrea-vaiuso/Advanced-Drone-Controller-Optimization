@@ -1,8 +1,8 @@
 # Author: Andrea Vaiuso
-# Version: 1.3
+# Version: 1.0
 # Date: 06.08.2025
-# Description: Class-based Particle Swarm Optimization for PID gain tuning.
-"""Particle Swarm Optimization for PID tuning packaged into a class."""
+# Description: Class-based Grey Wolf Optimizer for PID gain tuning.
+"""Grey Wolf Optimization for PID tuning packaged into a class."""
 
 from time import time
 from typing import Dict, Optional
@@ -21,19 +21,19 @@ from opt_func import (
 from optimizer import Optimizer
 
 
-class PSOPIDOptimizer(Optimizer):
-    """Optimize PID gains using Particle Swarm Optimization.
+class GWOPIDOptimizer(Optimizer):
+    """Optimize PID gains using the Grey Wolf Optimizer.
 
     Parameters
     ----------
     config_file : str, optional
-        Path to the PSO configuration file.
+        Path to the GWO configuration file.
     parameters_file : str, optional
         Path to the simulation parameters YAML file.
     verbose : bool, optional
         If ``True`` print step-by-step information.
     set_initial_obs : bool, optional
-        Include current PID gains as the first particle when ``True``.
+        Include current PID gains as the first wolf when ``True``.
     simulate_wind_flag : bool, optional
         Enable the Dryden wind model during simulations.
     waypoints : list, optional
@@ -43,7 +43,7 @@ class PSOPIDOptimizer(Optimizer):
 
     def __init__(
         self,
-        config_file: str = "Settings/pso_opt.yaml",
+        config_file: str = "Settings/gwo_opt.yaml",
         parameters_file: str = "Settings/simulation_parameters.yaml",
         *,
         verbose: bool = True,
@@ -53,7 +53,7 @@ class PSOPIDOptimizer(Optimizer):
         waypoints: Optional[list] = None,
     ) -> None:
         super().__init__(
-            "PSO",
+            "GWO",
             config_file,
             parameters_file,
             verbose=verbose,
@@ -63,16 +63,13 @@ class PSOPIDOptimizer(Optimizer):
             waypoints=waypoints,
         )
 
-        pso_cfg = self.cfg
+        gwo_cfg = self.cfg
 
-        self.n_iter = int(pso_cfg.get("n_iter", 100))
-        self.swarm_size = int(pso_cfg.get("swarm_size", 30))
-        self.w = float(pso_cfg.get("inertia_weight", 0.7))
-        self.c1 = float(pso_cfg.get("cognitive_coeff", 1.5))
-        self.c2 = float(pso_cfg.get("social_coeff", 1.5))
-        self.simulation_time = float(pso_cfg.get("simulation_time", 150))
+        self.n_iter = int(gwo_cfg.get("n_iter", 100))
+        self.pack_size = int(gwo_cfg.get("pack_size", 30))
+        self.simulation_time = float(gwo_cfg.get("simulation_time", 150))
 
-        pbounds_cfg = pso_cfg.get("pbounds", {})
+        pbounds_cfg = gwo_cfg.get("pbounds", {})
         self.pbounds = {k: tuple(v) for k, v in pbounds_cfg.items()}
         self.lower_bounds = np.array([v[0] for v in self.pbounds.values()], dtype=float)
         self.upper_bounds = np.array([v[1] for v in self.pbounds.values()], dtype=float)
@@ -80,14 +77,12 @@ class PSOPIDOptimizer(Optimizer):
 
         self.costs: list[float] = []
         self.best_costs: list[float] = []
-        self.global_best_pos: Optional[np.ndarray] = None
-        self.global_best_cost = np.inf
 
     # ------------------------------------------------------------------
     # Utility methods
     # ------------------------------------------------------------------
-    def decode_particle(self, vec: np.ndarray) -> Dict[str, tuple]:
-        """Convert a particle vector into a PID gain dictionary."""
+    def decode_wolf(self, vec: np.ndarray) -> Dict[str, tuple]:
+        """Convert a wolf vector into a PID gain dictionary."""
         return {
             "k_pid_pos": (vec[0], vec[1], vec[2]),
             "k_pid_alt": (vec[3], vec[4], vec[5]),
@@ -114,16 +109,15 @@ class PSOPIDOptimizer(Optimizer):
     # Optimization routine
     # ------------------------------------------------------------------
     def optimize(self) -> None:
-        """Execute the Particle Swarm Optimization process."""
+        """Execute the Grey Wolf Optimization process."""
         rng = np.random.default_rng(42)
-        particles_pos = rng.uniform(
-            self.lower_bounds, self.upper_bounds, size=(self.swarm_size, self.dim)
+        pack = rng.uniform(
+            self.lower_bounds, self.upper_bounds, size=(self.pack_size, self.dim)
         )
-        particles_vel = np.zeros((self.swarm_size, self.dim))
 
         if self.set_initial_obs:
             current_best = mainfunc.load_pid_gains(self.parameters)
-            init_particle = np.array(
+            init_wolf = np.array(
                 [
                     current_best["k_pid_pos"][0],
                     current_best["k_pid_pos"][1],
@@ -142,57 +136,85 @@ class PSOPIDOptimizer(Optimizer):
                     current_best["k_pid_vsp"][2],
                 ]
             )
-            particles_pos[0] = np.clip(init_particle, self.lower_bounds, self.upper_bounds)
+            pack[0] = np.clip(init_wolf, self.lower_bounds, self.upper_bounds)
 
-        personal_best_pos = particles_pos.copy()
-        personal_best_cost = np.full(self.swarm_size, np.inf)
+        alpha_pos = np.zeros(self.dim)
+        beta_pos = np.zeros(self.dim)
+        delta_pos = np.zeros(self.dim)
+        alpha_cost = np.inf
+        beta_cost = np.inf
+        delta_cost = np.inf
 
         start_opt = time()
-        print("Starting Particle Swarm Optimization...")
+        print("Starting Grey Wolf Optimization...")
         try:
-            for gen in range(self.n_iter):
-                for i in range(self.swarm_size):
-                    gains = self.decode_particle(particles_pos[i])
+            for it in range(self.n_iter):
+                for i in range(self.pack_size):
+                    gains = self.decode_wolf(pack[i])
                     costs_sim = self.simulate_pid(gains)
                     total_cost = costs_sim["total_cost"]
                     self.costs.append(total_cost)
                     log_step(gains, total_cost, self.log_path, costs_sim)
                     if self.verbose:
                         print(
-                            f"[ PSO ] Particle {i + 1}/{self.swarm_size} | Generation {gen + 1}/{self.n_iter} |"
+                            f"[ GWO ] Wolf {i + 1}/{self.pack_size} | Iteration {it + 1}/{self.n_iter} | "
                             f"cost={total_cost:.4f}, costs={costs_sim}"
                         )
-                    if total_cost < personal_best_cost[i]:
-                        personal_best_cost[i] = total_cost
-                        personal_best_pos[i] = particles_pos[i].copy()
-                    if total_cost < self.global_best_cost:
-                        self.global_best_cost = total_cost
-                        self.global_best_pos = particles_pos[i].copy()
-                    self.best_costs.append(self.global_best_cost)
-                for i in range(self.swarm_size):
-                    r1 = rng.random(self.dim)
-                    r2 = rng.random(self.dim)
-                    particles_vel[i] = (
-                        self.w * particles_vel[i]
-                        + self.c1 * r1 * (personal_best_pos[i] - particles_pos[i])
-                        + self.c2 * r2 * (self.global_best_pos - particles_pos[i])
-                    )
-                    particles_pos[i] = particles_pos[i] + particles_vel[i]
-                    particles_pos[i] = np.clip(
-                        particles_pos[i], self.lower_bounds, self.upper_bounds
-                    )
+                    if total_cost < alpha_cost:
+                        delta_cost = beta_cost
+                        delta_pos = beta_pos.copy()
+                        beta_cost = alpha_cost
+                        beta_pos = alpha_pos.copy()
+                        alpha_cost = total_cost
+                        alpha_pos = pack[i].copy()
+                    elif total_cost < beta_cost:
+                        delta_cost = beta_cost
+                        delta_pos = beta_pos.copy()
+                        beta_cost = total_cost
+                        beta_pos = pack[i].copy()
+                    elif total_cost < delta_cost:
+                        delta_cost = total_cost
+                        delta_pos = pack[i].copy()
+
+                self.best_costs.append(alpha_cost)
+                a = 2 - it * (2 / self.n_iter)
+                for i in range(self.pack_size):
+                    for d in range(self.dim):
+                        r1, r2 = rng.random(2)
+                        A1 = 2 * a * r1 - a
+                        C1 = 2 * r2
+                        D_alpha = abs(C1 * alpha_pos[d] - pack[i, d])
+                        X1 = alpha_pos[d] - A1 * D_alpha
+
+                        r1, r2 = rng.random(2)
+                        A2 = 2 * a * r1 - a
+                        C2 = 2 * r2
+                        D_beta = abs(C2 * beta_pos[d] - pack[i, d])
+                        X2 = beta_pos[d] - A2 * D_beta
+
+                        r1, r2 = rng.random(2)
+                        A3 = 2 * a * r1 - a
+                        C3 = 2 * r2
+                        D_delta = abs(C3 * delta_pos[d] - pack[i, d])
+                        X3 = delta_pos[d] - A3 * D_delta
+
+                        pack[i, d] = np.clip(
+                            (X1 + X2 + X3) / 3,
+                            self.lower_bounds[d],
+                            self.upper_bounds[d],
+                        )
         except KeyboardInterrupt:
             print("Optimization interrupted by user.")
         finally:
             tot_time = time() - start_opt
-            if self.global_best_pos is None:
+            if np.isinf(alpha_cost):
                 print("No evaluations were performed.")
                 return
-            best_params = self.decode_particle(self.global_best_pos)
+            best_params = self.decode_wolf(alpha_pos)
             show_best_params(
                 best_params,
                 self.opt_output_path,
-                self.global_best_cost,
+                alpha_cost,
                 self.n_iter,
                 self.simulation_time,
                 tot_time,
@@ -200,19 +222,19 @@ class PSOPIDOptimizer(Optimizer):
             plot_costs_trend(
                 self.costs,
                 save_path=self.opt_output_path.replace(".txt", "_costs.png"),
-                alg_name="Particle Swarm Optimization",
+                alg_name="Grey Wolf Optimization",
             )
             plot_costs_trend(
                 self.best_costs,
                 save_path=self.opt_output_path.replace(".txt", "_best_costs.png"),
-                alg_name="Particle Swarm Optimization",
+                alg_name="Grey Wolf Optimization",
             )
 
 
 def main() -> None:
-    """Run PID optimization using Particle Swarm Optimization."""
-    optimizer = PSOPIDOptimizer(
-        config_file="Settings/pso_opt.yaml",
+    """Run PID optimization using the Grey Wolf Optimizer."""
+    optimizer = GWOPIDOptimizer(
+        config_file="Settings/gwo_opt.yaml",
         parameters_file="Settings/simulation_parameters.yaml",
         verbose=True,
         set_initial_obs=True,
