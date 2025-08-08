@@ -11,6 +11,7 @@ from World import World
 from Wind import dryden_response
 from matplotlib import pyplot as plt
 from Noise.DNNModel import RotorSoundModel
+from Noise.Psychoacoustic import PsychoacousticBackendAdapter as PsLib
 import time
 
 MIN_HEIGHT_FROM_GROUND = 1e-4  # Minimum height from ground to avoid singularities in noise calculations
@@ -22,8 +23,11 @@ class Simulation:
                  dt: float = 0.007, max_simulation_time: float = 200.0, frame_skip: int = 8,
                  target_reached_threshold: float = 2.0,
                  target_shift_threshold_distance: float = 5,
-                 noise_model: RotorSoundModel = None, noise_annoyance_radius: int = 30,
-                 generate_sound_emission_map: bool = False):
+                 noise_model: RotorSoundModel = None, noise_annoyance_radius: int = 10,
+                 generate_sound_emission_map: bool = True,
+                 compute_psychoacoustics: bool = True,
+                 temperature_c: float = 15.0, relative_humidity: float = 60.0,
+                 pressure_kpa: float = 101.0):
         """
         Initialize the simulation with the drone model, world, waypoints, and parameters.
         Parameters:
@@ -38,6 +42,10 @@ class Simulation:
             noise_model (RotorSoundModel): Optional noise model for simulating drone noise emissions.
             noise_annoyance_radius (int): Radius around the drone to consider for noise emissions.
             generate_sound_emission_map (bool): If True, generate a sound map of noise emissions.
+            compute_psychoacoustics (bool): If True, compute psychoacoustic metrics.
+            temperature_c (float): Ambient temperature in degrees Celsius for noise calculations.
+            relative_humidity (float): Relative humidity percentage for noise calculations.
+            pressure_kpa (float): Static pressure in kPa for noise calculations.
 
         This simulation implements a dynamic target strategy where the drone follows a moving target
         along a path defined by waypoints. The target is computed dynamically based on the drone's position
@@ -56,7 +64,9 @@ class Simulation:
         self.target_shift_threshold_distance = target_shift_threshold_distance
         self.noise_model = noise_model
         self.noise_annoyance_radius = noise_annoyance_radius
-        
+        self.temperature_c = temperature_c
+        self.relative_humidity = relative_humidity
+        self.pressure_kpa = pressure_kpa
 
         # Wind simulation parameters
         self.wind_signals = []
@@ -87,6 +97,22 @@ class Simulation:
 
         self.generate_sound_emission_map = generate_sound_emission_map
         self.noise_emission_map = {}
+        self.psychoacoustics_map = {}
+        self.sampling_rate_factor = self.dt * self.frame_skip
+        self.compute_psychoacoustics = compute_psychoacoustics
+
+        self._band_freqs_hz = None
+        if self.noise_model is not None:
+            try:
+                # If your RotorSoundModel has this helper, great; otherwise set manually.
+                self._band_freqs_hz = self.noise_model.third_octave_center_frequencies(preferred=True)
+            except Exception:
+                self._band_freqs_hz = None  # You can set later via set_band_frequencies()
+
+
+    def set_band_frequencies(self, freqs_hz: np.ndarray):
+        """Optionally set 1/3-octave band centers if they cannot be derived from the noise model."""
+        self._band_freqs_hz = np.asarray(freqs_hz, dtype=float)
 
 
     def startSimulation(self, stop_at_target: bool = True,
@@ -149,9 +175,6 @@ class Simulation:
                                             self.wind_signals[1][step],
                                             self.wind_signals[2][step]])
                 self.drone.update_wind(wind_xyz_signal, simulate_wind=True)
-
-            
-            
 
             # Store data at specified intervals
             if step % self.frame_skip == 0:
@@ -395,9 +418,15 @@ class Simulation:
         self.distance_history.append(dist)
         self.seg_idx_history.append(self.current_seg_idx)
 
+    @staticmethod
+    def _broadband_from_bands(levels_db: np.ndarray) -> float:
+        """Power-sum per-band dB into broadband dB."""
+        x = np.asarray(levels_db, dtype=float)
+        return float(10.0 * np.log10(np.sum(10.0 ** (x / 10.0)) + 1e-300))
+
     def _compute_noise_emissions(self):
         # Compute noise emissions around the drone
-        sampling_rate_factor = self.dt * self.frame_skip
+        
         avg_spl = 0.0
         avg_swl = 0.0
         x_d, y_d, z_d = self.drone.state['pos']
@@ -407,22 +436,155 @@ class Simulation:
         areas, params = self.world.get_areas_in_circle(
             x=int(x_d), y=int(y_d), height=MIN_HEIGHT_FROM_GROUND,
             radius=self.noise_annoyance_radius, include_areas_out_of_bounds=True)
+        t_now = self.time_history[-1] if self.time_history else 0.0
         for area in areas:
             x_a, y_a, _ = area
             dist = np.linalg.norm([x_d, y_d, z_d] - np.array([x_a, y_a, MIN_HEIGHT_FROM_GROUND]))
             zeta = np.arctan2(abs(z_d), dist)
-            spl, swl = self.noise_model.get_noise_emissions(
-                zeta_angle=zeta, rpms=self.drone.state['rpm'], distance=dist)
+
+            spl_band, swl_band = self.noise_model.get_noise_emissions(
+                zeta_angle=zeta, 
+                rpms=self.drone.state['rpm'], 
+                distance=dist,
+                temperature_c=self.temperature_c, 
+                relative_humidity=self.relative_humidity, 
+                pressure_kpa=self.pressure_kpa
+                )
+            spl = self._broadband_from_bands(spl_band)
+            swl = self._broadband_from_bands(swl_band)
+            
             avg_spl += spl
             avg_swl += swl
 
             if self.generate_sound_emission_map:
-                self.noise_emission_map[x_a, y_a] = {
-                    'spl': self.noise_emission_map[x_a, y_a]['spl'] + spl * sampling_rate_factor if (x_a, y_a) in self.noise_emission_map else spl * sampling_rate_factor,
-                    'swl': self.noise_emission_map[x_a, y_a]['swl'] + swl * sampling_rate_factor if (x_a, y_a) in self.noise_emission_map else swl * sampling_rate_factor,
-                }
+                key = (x_a, y_a)
+                
+                if key not in self.noise_emission_map:
+                    self.noise_emission_map[key] = {
+                        # legacy accumulators (time-weighted broadband integrals)
+                        'spl': 0.0,
+                        'swl': 0.0,
+                    }
+                    if self.compute_psychoacoustics:
+                        self.noise_emission_map[key].update({
+                            'spl_bands_ts': [],   # list of 1D arrays (n_bands,)
+                            'time_ts': [],        # list of floats (s)
+                            # placeholders for finalized psychoacoustic metrics
+                            'PA': None, 'L': None, 'S': None, 'R': None, 'FS': None, 'N5': None
+                        })
+
+                entry = self.noise_emission_map[key]
+                entry['spl'] += spl * self.sampling_rate_factor
+                entry['swl'] += swl * self.sampling_rate_factor
+                # store snapshots (keep as float32 to save memory if long runs)
+                if self.compute_psychoacoustics:
+                    entry['spl_bands_ts'].append(np.asarray(spl_band, dtype=np.float32))
+                    entry['time_ts'].append(float(t_now))
 
         count = len(areas) if areas else 1
         self.spl_history.append(avg_spl / count)
         self.swl_history.append(avg_swl / count)
+
+    def compute_psychoacoustics_map(self, backend: PsLib, assume_uniform_dt: bool = True):
+            """
+            Compute PA, Loudness (L), Sharpness (S), Roughness (R), and Fluctuation Strength (FS)
+            for each area in noise_emission_map using a psychoacoustic backend.
+
+            Parameters
+            ----------
+            backend : PsychoacousticBackend
+                Adapter providing the methods to compute L(t), S, R, FS from 1/3-octave time series.
+            assume_uniform_dt : bool, optional
+                If True, dt is inferred as median of successive time stamps per area.
+                If False, a resampling to uniform dt is expected to be handled inside the backend.
+
+            Effects
+            -------
+            Updates each entry in `noise_emission_map[(x, y)]` by adding:
+            - 'L'  : time-averaged loudness in sone (mean of L(t))
+            - 'N5' : 95th percentile of loudness over time in sone
+            - 'S'  : sharpness in acum (loudness-weighted or time-averaged, as per backend)
+            - 'FS' : fluctuation strength in vacil (time-averaged)
+            - 'R'  : roughness in asper (time-averaged)
+            - 'PA' : Zwicker psychoacoustic annoyance (scalar)
+            """
+            if not self.compute_psychoacoustics:
+                raise RuntimeError("Psychoacoustics computation is disabled. Set compute_psychoacoustics=True to enable it and restart the simulation.")
+            
+            if not self.noise_emission_map:
+                raise RuntimeError("noise_emission_map is empty. Run the simulation with generate_sound_emission_map=True.")
+
+            if backend is None or not isinstance(backend, PsLib):
+                raise TypeError("Please provide a PsychoacousticBackend instance wired to your psychoacoustic library.")
+
+            if self._band_freqs_hz is None:
+                raise RuntimeError("1/3-octave band center frequencies are unknown. "
+                                "Call set_band_frequencies(freqs_hz) or provide them via the noise model.")
+
+            for key, entry in self.noise_emission_map.items():
+                
+                ts = entry.get('spl_bands_ts', None)
+                tt = entry.get('time_ts', None)
+                if not ts or not tt:
+                    # nothing accumulated for this area (e.g., never inside radius)
+                    continue
+
+                SPL_bands = np.vstack(ts)  # shape (T, n_bands)
+                time_arr = np.asarray(tt, dtype=float)
+                if assume_uniform_dt:
+                    if len(time_arr) > 1:
+                        dt = float(np.median(np.diff(time_arr)))
+                    else:
+                        # fallback to simulation nominal sampling
+                        dt = float(self.sampling_rate_factor) if self.sampling_rate_factor > 0 else float(self.dt * self.frame_skip)
+                else:
+                    # non-uniform dt: your backend should handle time stamps or resampling
+                    dt = None
+
+                # ---- Psychoacoustic metrics via backend ----
+                L_time = backend.loudness_time(SPL_bands=SPL_bands, freqs_hz=self._band_freqs_hz, dt=dt)  # (T,)
+                L_time = np.asarray(L_time, dtype=float)
+                L_bar = float(np.mean(L_time)) if L_time.size else float('nan')
+
+                # N5 percentile loudness (Zwicker)
+                if L_time.size:
+                    N5 = float(np.percentile(L_time, 95.0))
+                else:
+                    N5 = float('nan')
+
+                # Sharpness (acum), Fluctuation Strength (vacil), Roughness (asper)
+                S_bar  = float(backend.sharpness(SPL_bands=SPL_bands, freqs_hz=self._band_freqs_hz, L_time=L_time))
+                FS_bar = float(backend.fluctuation_strength(SPL_bands=SPL_bands, freqs_hz=self._band_freqs_hz, dt=dt))
+                R_bar  = float(backend.roughness(SPL_bands=SPL_bands, freqs_hz=self._band_freqs_hz, dt=dt))
+
+                # ---- Zwicker psychoacoustic annoyance (PA) ----
+                # PA = N5 * (1 + sqrt(omega_S^2 + omega_FR^2))
+                # omega_S = max(S/acum - 1.75, 0) * log(N5/sone + 10)
+                # omega_FR = 2.18 / (N5/sone)**0.4 * (0.4*F/vacil + 0.6*R/asper)
+                if np.isfinite(N5) and N5 > 0:
+                    omega_S  = max(S_bar - 1.75, 0.0) * np.log(N5 + 10.0)
+                    omega_FR = (2.18 / (N5 ** 0.4)) * (0.4 * FS_bar + 0.6 * R_bar)
+                    PA = float(N5 * (1.0 + np.sqrt(omega_S**2 + omega_FR**2)))
+                else:
+                    PA = float('nan')
+
+                # ---- Update the map (non-destructive for legacy keys) ----
+                entry['L']  = L_bar
+                entry['N5'] = N5
+                entry['S']  = S_bar
+                entry['FS'] = FS_bar
+                entry['R']  = R_bar
+                entry['PA'] = PA
+                del entry['spl_bands_ts']
+                del entry['time_ts']
+
+                # Print loadbar for progress tracking
+                if len(self.noise_emission_map) > 1:
+                    progress = (list(self.noise_emission_map.keys()).index(key) + 1) / len(self.noise_emission_map)
+                    print(f"\rComputing psychoacoustics: [{int(progress * 20) * '#':<20}] {progress:.2%}", end='')
+
+                
+
+
+            return self.noise_emission_map
 

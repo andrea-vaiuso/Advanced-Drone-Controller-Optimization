@@ -3,7 +3,8 @@ dt: 0.007
 simulation_time: 150 # seconds
 frame_skip: 25 # Number of frames to skip for smoother animation
 threshold: 2.0  # Stop simulation threshold
-target_shift_threshold_distance: 5 # Shift to next segment threshold 
+target_shift_threshold_distance: 2 # Shift to next segment threshold 
+noise_annoyance_radius: 10 # Radius for noise annoyance calculation in meters
 
 max_rpm: 3000 # Maximum RPM for the motors
 n_rotors: 4 # Number of rotors
@@ -82,7 +83,7 @@ Jr: 6e-5
 world_data_path: "Worlds/green_area.pkl"
 
 # Noise parameters
-dnn_model_filename: "Noise/angles_swl.npy"
+dnn_model_filename: "Noise/lookup_noise_model.npy"
 empa_model_filename: "Noise/model_coefficients.npz"
 empa_model_scaling_filename: "Noise/scaler.joblib"
 rpm_reference: 2500

@@ -48,7 +48,7 @@ def run_optimizer(opt_class: Type[Optimizer], waypoints: list, study_name: str) 
 def main() -> None:
     """Start all optimizers in separate processes."""
 
-    study_name = "std_wayp_no_initobs_no_wind"
+    study_name = "std_wayp_no_initobs_no_wind_large_bounds"
 
     waypoints = mainfunc.create_training_waypoints()
 

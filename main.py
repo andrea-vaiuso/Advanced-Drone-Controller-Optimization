@@ -8,6 +8,7 @@ from Noise.DNNModel import RotorSoundModel as DNNModel
 from Noise.EmpaModel import NoiseModel as EmpaModel
 from Rotor.TorchRotorModel import RotorModel
 import yaml
+from Noise.Psychoacoustic import PsychoacousticBackendAdapter as PsLib
 from opt_func import calculate_costs
 
 def main():
@@ -45,16 +46,38 @@ def main():
     # noise_model = load_empa_noise_model(parameters) # Use Empa model
 
     # Initialize the simulation
-    sim = create_simulation(drone, world, waypoints, parameters, noise_model, generate_sound_map=True)
-    sim.setWind(max_simulation_time=parameters['simulation_time'], dt=parameters['dt'], height=100, airspeed=10, turbulence_level=50, plot_wind_signal=False, seed=None)
-    sim.startSimulation(stop_at_target=False, use_static_target=True, verbose=True)
+    sim = Simulation(
+        drone,
+        world,
+        waypoints, 
+        dt=float(parameters['dt']),
+        max_simulation_time=float(parameters['simulation_time']),
+        frame_skip=int(parameters['frame_skip']),
+        target_reached_threshold=float(parameters['threshold']),
+        target_shift_threshold_distance=float(parameters['target_shift_threshold_distance']),
+        noise_model=noise_model,
+        generate_sound_emission_map=True,
+        compute_psychoacoustics=False,
+        noise_annoyance_radius=int(parameters['noise_annoyance_radius']),
+    )
+    print(f"Simulation sampling rate: {1 / (sim.dt * sim.frame_skip):.2f} Hz")
+    sim.setWind(max_simulation_time=parameters['simulation_time'], dt=parameters['dt'], height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed=None)
+    sim.startSimulation(stop_at_target=True, use_static_target=True, verbose=True)
+    # sim.compute_psychoacoustics_map(PsLib(
+    #     field_type="free",
+    #     sharpness_weighting="din",
+    #     fine_df_hz=10.0,
+    #     fmin_hz=24.0,
+    #     fmax_hz=24000.0
+    # ))
+    # print(sim.noise_emission_map)
 
     # Plot 3D animation of the drone's trajectory
     plot3DAnimation(sim)
     
     # Plot noise emission map and histogram
-    plotNoiseEmissionMap(sim, upper_limit=40)
-    plotNoiseEmissionHistogram(sim, upper_limit=40)
+    plotNoiseEmissionMap(sim, upper_limit=None)
+    plotNoiseEmissionHistogram(sim, upper_limit=None)
 
     plotLogData(
         generate_log_dict(sim),
@@ -93,9 +116,9 @@ def create_training_waypoints() -> list:
         {'x': 10.0, 'y': 90.0, 'z': 20.0, 'v': 5},   # Sharp maneuver: near x, far y with dramatic altitude drop
         {'x': 50.0, 'y': 50.0, 'z': 40.0, 'v': 5},   # Central target with intermediate altitude
         {'x': 60.0, 'y': 60.0, 'z': 40.0, 'v': 5},   # Hovering target 1
-        {'x': 70.0, 'y': 70.0, 'z': 40.0, 'v': 5},   # Hovering target 2
-        {'x': 80.0, 'y': 80.0, 'z': 40.0, 'v': 5},   # Hovering target 3
-        {'x': 10.0, 'y': 10.0, 'z': 10.0, 'v': 5}    # Final target: near origin at low altitude
+        {'x': 70.0, 'y': 70.0, 'z': 80.0, 'v': 5},   # Hovering target 2 going higher
+        {'x': 80.0, 'y': 80.0, 'z': 40.0, 'v': 5},   # Hovering target 3 going lower
+        {'x': 10.0, 'y': 10.0, 'z': 1.0, 'v': 5}    # Final target: near origin at low altitude
     ]
 
 def create_random_waypoints(n: int = 10, x_range: tuple = (0, 100), y_range: tuple = (0, 100), z_range: tuple = (0, 100), v: float = 5) -> list:
@@ -240,7 +263,7 @@ def load_dnn_noise_model(parameters) -> DNNModel:
     """
     return DNNModel(
         rpm_reference=float(parameters['rpm_reference']),
-        filename=parameters['dnn_model_filename']
+        lookup_table_filename=parameters['dnn_model_filename']
     )
 
 def load_empa_noise_model(parameters) -> EmpaModel:
@@ -258,32 +281,6 @@ def load_empa_noise_model(parameters) -> EmpaModel:
     )
     noise_model.load_model(parameters['empa_model_filename'])
     return noise_model
-
-def create_simulation(drone, world, waypoints, parameters, noise_model=None, generate_sound_map=False) -> Simulation:
-    """
-    Create a simulation instance with the given drone, world, and waypoints.
-
-    Parameters:
-        drone (QuadcopterModel): The quadcopter model.
-        world (World): The simulation world.
-        waypoints (list): List of waypoints for the drone to follow.
-        parameters (dict): Configuration parameters for the simulation.
-
-    Returns:
-        Simulation: Initialized simulation instance.
-    """
-    return Simulation(
-        drone,
-        world,
-        waypoints, 
-        dt=float(parameters['dt']),
-        max_simulation_time=float(parameters['simulation_time']),
-        frame_skip=int(parameters['frame_skip']),
-        target_reached_threshold=float(parameters['threshold']),
-        target_shift_threshold_distance=float(parameters['target_shift_threshold_distance']),
-        noise_model=noise_model,
-        generate_sound_emission_map=generate_sound_map
-    )
 
 
 def generate_log_dict(sim: Simulation) -> dict:

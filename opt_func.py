@@ -91,7 +91,7 @@ def calculate_costs(sim: Simulation, simulation_time: float,
                     pitch_roll_oscillation_weight: float = 1.0,
                     thrust_oscillation_weight: float = 1e-5,
                     power_weight: float = 1e-4,
-                    noise_weight: float = 6e-23,
+                    noise_weight: float = 2e-25,
                     print_costs: bool = False) -> tuple:
 
     """Compute the cost metrics used for PID gain optimization."""
@@ -198,6 +198,7 @@ def run_simulation(pid_gains: Dict[str, tuple],
     import main as mainfunc  # noqa: WPS433 (acceptable in this context)
 
     init_state = mainfunc.create_initial_state()
+
     quad_controller = mainfunc.create_quadcopter_controller(
         init_state=init_state,
         pid_gains=pid_gains,
@@ -207,13 +208,27 @@ def run_simulation(pid_gains: Dict[str, tuple],
     drone = mainfunc.create_quadcopter_model(
         init_state=init_state, quad_controller=quad_controller, parameters=parameters
     )
-    sim = mainfunc.create_simulation(
-        drone=drone,
-        world=world,
-        waypoints=waypoints,
-        parameters=parameters,
+    # sim = mainfunc.create_simulation(
+    #     drone=drone,
+    #     world=world,
+    #     waypoints=waypoints,
+    #     parameters=parameters,
+    #     noise_model=noise_model,
+    #     generate_sound_map=False,
+    # )
+    sim = Simulation(
+        drone,
+        world,
+        waypoints, 
+        dt=float(parameters['dt']),
+        max_simulation_time=float(parameters['simulation_time']),
+        frame_skip=int(parameters['frame_skip']),
+        target_reached_threshold=float(parameters['threshold']),
+        target_shift_threshold_distance=float(parameters['target_shift_threshold_distance']),
+        noise_annoyance_radius=int(parameters['noise_annoyance_radius']),
         noise_model=noise_model,
-        generate_sound_map=False,
+        generate_sound_emission_map=False,
+        compute_psychoacoustics=False,
     )
     if simulate_wind:
         sim.setWind(
