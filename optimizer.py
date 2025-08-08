@@ -74,8 +74,9 @@ class Optimizer:
         self.waypoints = (
             waypoints if waypoints is not None else mainfunc.create_training_waypoints()
         )
-        self.world = World.load_world(self.parameters["world_data_path"])
+        self.world = World.load_world(self.parameters["world_data_path"]) 
         self.noise_model = mainfunc.load_dnn_noise_model(self.parameters)
+
         self.simulation_time = simulation_time
 
     def optimize(self) -> None:
