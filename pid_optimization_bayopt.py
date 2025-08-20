@@ -178,10 +178,12 @@ class BayesianPIDOptimizer(Optimizer):
             }
             global_best_cost = -optimizer.max["target"]
             show_best_params(
+                "Bayesian",
+                self.parameters,
                 best_formatted,
                 self.opt_output_path,
                 global_best_cost,
-                self.n_iter,
+                self.iteration,
                 self.simulation_time,
                 tot_time,
             )

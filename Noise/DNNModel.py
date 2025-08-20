@@ -15,7 +15,7 @@ class RotorSoundModel:
         self,
         rpm_reference: float = 2500.0,
         lookup_table_filename: str = "lookup_noise_model.npy",
-        rpm_exponent: float = 1.0,
+        rpm_exponent: float = 3.0,
     ):
         """
         Initialize the model from an angle-indexed SWL lookup table.
@@ -30,7 +30,7 @@ class RotorSoundModel:
         rpm_exponent : float, optional
             Exponent for RPM scaling of SWL:
             ``SWL(rpm) = SWL_ref + 10 * rpm_exponent * log10(rpm / rpm_reference)``.
-            Default is 1.0.
+            Default is 3.0.
         """
         self.noise_data = np.load(lookup_table_filename, allow_pickle=True)
         data = np.asarray(self.noise_data)

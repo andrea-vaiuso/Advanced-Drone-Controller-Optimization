@@ -85,28 +85,36 @@ class PsychoacousticBackendAdapter(PsychoacousticBackend):
     # ---------- Public API expected by Simulation.compute_psychoacoustics_map ----------
 
     def loudness_time(self, SPL_bands: np.ndarray, freqs_hz: np.ndarray, dt: Optional[float]) -> np.ndarray:
-        spec, freqs = self._expand_bands_to_fine_spectrum(SPL_bands, freqs_hz)
-        N, N_spec, _bark = loudness_zwst_freq(spec, freqs, field_type=self.field_type)  # (T,), (Nbark,T)
-        # cache for sharpness computation (avoid recomputing)
-        self._cached_loudness = (np.asarray(N, dtype=float), np.asarray(N_spec, dtype=float))
-        return np.asarray(N, dtype=float)
+        try:
+            spec, freqs = self._expand_bands_to_fine_spectrum(SPL_bands, freqs_hz)
+            N, N_spec, _bark = loudness_zwst_freq(spec, freqs, field_type=self.field_type)  # (T,), (Nbark,T)
+            # cache for sharpness computation (avoid recomputing)
+            self._cached_loudness = (np.asarray(N, dtype=float), np.asarray(N_spec, dtype=float))
+            return np.asarray(N, dtype=float)
+        except Exception as e:
+            print(f"Error computing loudness: {e}")
+            return np.zeros(SPL_bands.shape[0], dtype=float)
 
     def sharpness(self, SPL_bands: np.ndarray, freqs_hz: np.ndarray, L_time: np.ndarray) -> float:
         # Prefer using cached N, N_specific if available (same call context)
-        if hasattr(self, "_cached_loudness"):
-            N, N_spec = self._cached_loudness
-        else:
-            # Fallback: compute loudness from bands
-            spec, freqs = self._expand_bands_to_fine_spectrum(SPL_bands, freqs_hz)
-            N, N_spec, _ = loudness_zwst_freq(spec, freqs, field_type=self.field_type)
+        try:
+            if hasattr(self, "_cached_loudness"):
+                N, N_spec = self._cached_loudness
+            else:
+                # Fallback: compute loudness from bands
+                spec, freqs = self._expand_bands_to_fine_spectrum(SPL_bands, freqs_hz)
+                N, N_spec, _ = loudness_zwst_freq(spec, freqs, field_type=self.field_type)
 
-        S_time = sharpness_din_from_loudness(
-            N=np.asarray(N, dtype=float),
-            N_specific=np.asarray(N_spec, dtype=float),
-            weighting=self.sharpness_weighting,
-        )
-        # Return a scalar (time-average); swap to loudness-weighted if you prefer
-        return float(np.mean(np.asarray(S_time, dtype=float)))
+            S_time = sharpness_din_from_loudness(
+                N=np.asarray(N, dtype=float),
+                N_specific=np.asarray(N_spec, dtype=float),
+                weighting=self.sharpness_weighting,
+            )
+            # Return a scalar (time-average); swap to loudness-weighted if you prefer
+            return float(np.mean(np.asarray(S_time, dtype=float)))
+        except Exception as e:
+            print(f"Error computing sharpness: {e}")
+            return 0.0
 
     def fluctuation_strength(self, SPL_bands: np.ndarray, freqs_hz: np.ndarray, dt: Optional[float]) -> float:
         # Not available in MoSQITo yet
@@ -114,10 +122,14 @@ class PsychoacousticBackendAdapter(PsychoacousticBackend):
 
     def roughness(self, SPL_bands: np.ndarray, freqs_hz: np.ndarray, dt: Optional[float]) -> float:
         # Use MoSQITo's Daniel & Weber implementation from spectrum
-        spec, freqs = self._expand_bands_to_fine_spectrum(SPL_bands, freqs_hz)
-        R, _Rspec, _bark = roughness_dw_freq(spec, freqs)  # R is (T,) or scalar
-        R = np.asarray(R, dtype=float)
-        return float(np.mean(R)) if R.ndim > 0 else float(R)
+        try:
+            spec, freqs = self._expand_bands_to_fine_spectrum(SPL_bands, freqs_hz)
+            R, _Rspec, _bark = roughness_dw_freq(spec, freqs)  # R is (T,) or scalar
+            R = np.asarray(R, dtype=float)
+            return float(np.mean(R)) if R.ndim > 0 else float(R)
+        except Exception as e:
+            print(f"Error computing roughness: {e}")
+            return 0.0
 
     # ------------------------------ Helpers ------------------------------
 

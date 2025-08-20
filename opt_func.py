@@ -157,7 +157,6 @@ def calculate_costs(sim: Simulation, simulation_time: float,
     if print_costs: print(result)
     return result
 
-
 def run_simulation(pid_gains: Dict[str, tuple],
                    parameters: dict,
                    waypoints: list,
@@ -253,7 +252,7 @@ def seconds_to_hhmmss(seconds: float) -> str:
     secs = int(seconds % 60)
     return f"{hours:02}:{minutes:02}:{secs:02}"
 
-def show_best_params(best_params, opt_output_path, global_best_cost, n_iter, simulation_time, tot_time):
+def show_best_params(alg_name, sim_parameters, best_params, opt_output_path, global_best_cost, n_iter, simulation_time, tot_time):
     print("Best parameters found:")
     print("k_pid_yaw: (0.5, 1e-6, 0.1)")
     print("k_pid_pos: [{:.5g}, {:.5g}, {:.5g}]".format(*best_params['k_pid_pos']))
@@ -264,6 +263,7 @@ def show_best_params(best_params, opt_output_path, global_best_cost, n_iter, sim
     print("Best cost value: {:.4f}".format(global_best_cost))
 
     with open(opt_output_path, 'w') as f:
+        f.write(f"Optimization Algorithm: {alg_name}\n")
         f.write("Best parameters found:\n")
         for k, v in best_params.items():
             f.write(f"{k}: {v}\n")
@@ -271,4 +271,8 @@ def show_best_params(best_params, opt_output_path, global_best_cost, n_iter, sim
         f.write(f"Total optimization time: {seconds_to_hhmmss(tot_time)}\n")
         f.write(f"N iterations: {n_iter}\n")
         f.write(f"Max sim time: {simulation_time:.2f} seconds\n")
+        f.write(f"Avg step time: {tot_time / n_iter:.2f} seconds\n")
+        f.write(f"\n----------------\nSimulation parameters:\n")
+        for k, v in sim_parameters.items():
+            f.write(f"{k}: {v}\n")
 

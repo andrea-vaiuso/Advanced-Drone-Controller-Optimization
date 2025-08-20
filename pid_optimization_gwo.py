@@ -151,6 +151,7 @@ class GWOPIDOptimizer(Optimizer):
         try:
             for it in range(self.n_iter):
                 for i in range(self.pack_size):
+                    self.iteration = (i + 1) * (it + 1)
                     gains = self.decode_wolf(pack[i])
                     costs_sim = self.simulate_pid(gains)
                     total_cost = costs_sim["total_cost"]
@@ -158,7 +159,7 @@ class GWOPIDOptimizer(Optimizer):
                     log_step(gains, total_cost, self.log_path, costs_sim)
                     if self.verbose:
                         print(
-                            f"[ GWO ] Wolf {i + 1}/{self.pack_size} | Iteration {it + 1}/{self.n_iter} | "
+                            f"[ GWO ] Iteration {self.iteration}/{self.n_iter*self.pack_size} | "
                             f"cost={total_cost:.4f}, costs={costs_sim}"
                         )
                     if total_cost < alpha_cost:
@@ -176,8 +177,8 @@ class GWOPIDOptimizer(Optimizer):
                     elif total_cost < delta_cost:
                         delta_cost = total_cost
                         delta_pos = pack[i].copy()
+                    self.best_costs.append(alpha_cost)
 
-                self.best_costs.append(alpha_cost)
                 a = 2 - it * (2 / self.n_iter)
                 for i in range(self.pack_size):
                     for d in range(self.dim):
@@ -213,10 +214,12 @@ class GWOPIDOptimizer(Optimizer):
                 return
             best_params = self.decode_wolf(alpha_pos)
             show_best_params(
+                "Grey Wolf Optimization",
+                self.parameters,
                 best_params,
                 self.opt_output_path,
                 alpha_cost,
-                self.n_iter,
+                self.iteration,
                 self.simulation_time,
                 tot_time,
             )

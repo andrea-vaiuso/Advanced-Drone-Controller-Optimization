@@ -2,7 +2,7 @@ import numpy as np
 from Drone import QuadcopterModel
 from Controller import QuadCopterController
 from Simulation import Simulation
-from plotting_functions import plot3DAnimation, plotLogData, plotNoiseEmissionMap, plotNoiseEmissionHistogram
+from plotting_functions import plot3DAnimation, plotLogData, plotNoiseEmissionMap, plotNoiseEmissionHistogram, get_total_PA
 from World import World
 from Noise.DNNModel import RotorSoundModel as DNNModel
 from Noise.EmpaModel import NoiseModel as EmpaModel
@@ -57,27 +57,32 @@ def main():
         target_shift_threshold_distance=float(parameters['target_shift_threshold_distance']),
         noise_model=noise_model,
         generate_sound_emission_map=True,
-        compute_psychoacoustics=False,
-        noise_annoyance_radius=int(parameters['noise_annoyance_radius']),
+        compute_psychoacoustics=True,
+        noise_annoyance_radius=9,
     )
     print(f"Simulation sampling rate: {1 / (sim.dt * sim.frame_skip):.2f} Hz")
-    sim.setWind(max_simulation_time=parameters['simulation_time'], dt=parameters['dt'], height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed=None)
+    # sim.setWind(max_simulation_time=parameters['simulation_time'], dt=parameters['dt'], height=100, airspeed=10, turbulence_level=10, plot_wind_signal=False, seed=None)
     sim.startSimulation(stop_at_target=True, use_static_target=True, verbose=True)
-    # sim.compute_psychoacoustics_map(PsLib(
-    #     field_type="free",
-    #     sharpness_weighting="din",
-    #     fine_df_hz=10.0,
-    #     fmin_hz=24.0,
-    #     fmax_hz=24000.0
-    # ))
+    sim.compute_psychoacoustics_map(PsLib(
+        field_type="free",
+        sharpness_weighting="din",
+        fine_df_hz=10.0,
+        fmin_hz=24.0,
+        fmax_hz=24000.0
+    ))
     # print(sim.noise_emission_map)
 
     # Plot 3D animation of the drone's trajectory
     plot3DAnimation(sim)
     
     # Plot noise emission map and histogram
-    plotNoiseEmissionMap(sim, upper_limit=None)
-    plotNoiseEmissionHistogram(sim, upper_limit=None)
+    plotNoiseEmissionMap(sim, upper_limit=None, param='spl', label='Noise Level (dB / s) per second')
+    plotNoiseEmissionHistogram(sim, upper_limit=None, param='spl', label='Noise Level (dB / s) per second')
+
+    plotNoiseEmissionMap(sim, upper_limit=None, param='PA', label='Averaged Psychoacoustic Annoyance (PA) per second')
+    plotNoiseEmissionHistogram(sim, upper_limit=None, param='PA', label='Averaged Psychoacoustic Annoyance (PA) per second')
+
+    print("Total Psychoacoustic Annoyance (PA):", get_total_PA(sim))
 
     plotLogData(
         generate_log_dict(sim),
@@ -316,6 +321,7 @@ def generate_log_dict(sim: Simulation) -> dict:
                 'Yaw':   np.array(sim.angles_history)[:, 2]
             },
             'ylabel': 'Angle (rad)',
+            'ylim': (-1.5, 1.5),
             'styles': {
                 'Pitch': {'color': 'tab:blue',   'linestyle': '-',  'label': 'Pitch'},
                 'Roll':  {'color': 'tab:orange', 'linestyle': '--', 'label': 'Roll'},
@@ -325,6 +331,7 @@ def generate_log_dict(sim: Simulation) -> dict:
         'Motor RPMs': {
             'data': np.array(sim.rpms_history),
             'ylabel': 'RPM',
+            'ylim': (0, 3000),
             'colors': ['tab:blue', 'tab:orange', 'tab:green', 'tab:red'],
             'linestyles': ['-', '--', '-.', ':'],
             'labels': ['RPM1 (FR)', 'RPM2 (RR)', 'RPM3 (RL)', 'RPM4 (FL)']
@@ -345,7 +352,9 @@ def generate_log_dict(sim: Simulation) -> dict:
             'ylabel': 'Level (dB)',
             'color': 'orange',
             'linestyle': '-',
+            'ylim': (20, 100),
             'label': 'SPL',
+            'calc_average': True,
             'showgrid': True
         },
         'Sound Power Level (SWL)': {
@@ -353,7 +362,9 @@ def generate_log_dict(sim: Simulation) -> dict:
             'ylabel': 'Level (dB)',
             'color': 'purple',
             'linestyle': '-',
+            'ylim': (20, 130),
             'label': 'SWL',
+            'calc_average': True,
             'showgrid': True
         },
         'Thrust': {
@@ -361,6 +372,7 @@ def generate_log_dict(sim: Simulation) -> dict:
             'ylabel': 'Thrust (N)',
             'color': 'brown',
             'linestyle': '-',
+            'ylim': (0, 50),
             'label': 'Thrust',
             'showgrid': True
         },
@@ -369,7 +381,9 @@ def generate_log_dict(sim: Simulation) -> dict:
             'ylabel': 'Power (W)',
             'color': 'green',
             'linestyle': '-',
+            'ylim': (0, 1000),
             'label': 'Power',
+            'calc_average': True,
             'showgrid': True
         },
         'Wind Thrust': {

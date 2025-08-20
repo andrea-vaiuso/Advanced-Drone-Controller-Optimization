@@ -153,6 +153,7 @@ class PSOPIDOptimizer(Optimizer):
         try:
             for gen in range(self.n_iter):
                 for i in range(self.swarm_size):
+                    self.iteration = (i + 1) * (gen + 1)
                     gains = self.decode_particle(particles_pos[i])
                     costs_sim = self.simulate_pid(gains)
                     total_cost = costs_sim["total_cost"]
@@ -160,7 +161,7 @@ class PSOPIDOptimizer(Optimizer):
                     log_step(gains, total_cost, self.log_path, costs_sim)
                     if self.verbose:
                         print(
-                            f"[ PSO ] Particle {i + 1}/{self.swarm_size} | Generation {gen + 1}/{self.n_iter} |"
+                            f"[ PSO ] Iteration {self.iteration}/{self.n_iter*self.swarm_size} |"
                             f"cost={total_cost:.4f}, costs={costs_sim}"
                         )
                     if total_cost < personal_best_cost[i]:
@@ -191,10 +192,12 @@ class PSOPIDOptimizer(Optimizer):
                 return
             best_params = self.decode_particle(self.global_best_pos)
             show_best_params(
+                "Particle Swarm Optimization",
+                self.parameters,
                 best_params,
                 self.opt_output_path,
                 self.global_best_cost,
-                self.n_iter,
+                self.iteration,
                 self.simulation_time,
                 tot_time,
             )

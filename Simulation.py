@@ -452,6 +452,8 @@ class Simulation:
                 )
             spl = self._broadband_from_bands(spl_band)
             swl = self._broadband_from_bands(swl_band)
+
+            #Probabilmente sbagliato, da sommare i livelli in dB
             
             avg_spl += spl
             avg_swl += swl

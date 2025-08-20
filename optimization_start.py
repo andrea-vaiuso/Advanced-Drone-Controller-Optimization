@@ -37,8 +37,8 @@ def run_optimizer(opt_class: Type[Optimizer], waypoints: list, study_name: str) 
     """Instantiate and execute the optimization algorithm."""
     optimizer = opt_class(
         verbose=True,
-        set_initial_obs=False,
-        simulate_wind_flag=False,
+        set_initial_obs=True,
+        simulate_wind_flag=True,
         waypoints=waypoints,
         study_name=study_name
     )
@@ -48,7 +48,7 @@ def run_optimizer(opt_class: Type[Optimizer], waypoints: list, study_name: str) 
 def main() -> None:
     """Start all optimizers in separate processes."""
 
-    study_name = "std_wayp_no_initobs_no_wind_large_bounds"
+    study_name = "std_wayp_yes_initobs_yes_wind_small_bounds"
 
     waypoints = mainfunc.create_training_waypoints()
 

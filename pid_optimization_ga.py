@@ -175,6 +175,7 @@ class GAPIDOptimizer(Optimizer):
             for gen in range(self.n_generations):
                 # Evaluate population
                 for i in range(self.population_size):
+                    self.iteration = (i + 1) * (gen + 1)
                     gains = self.decode_individual(population[i])
                     costs_sim = self.simulate_pid(gains)
                     total_cost = costs_sim["total_cost"]
@@ -182,7 +183,7 @@ class GAPIDOptimizer(Optimizer):
                     log_step(gains, total_cost, self.log_path, costs_sim)
                     if self.verbose:
                         print(
-                            f"[ GA ] Individual {i + 1}/{self.population_size} | Generation {gen + 1}/{self.n_generations} | "
+                            f"[ GA ] Iteration {self.iteration}/{self.n_generations*self.population_size} | "
                             f"cost={total_cost:.4f}, costs={costs_sim}"
                         )
                     fitness[i] = total_cost
@@ -214,10 +215,12 @@ class GAPIDOptimizer(Optimizer):
                 return
             best_params = self.decode_individual(self.best_individual)
             show_best_params(
+                "Genetic Algorithm",
+                self.parameters,
                 best_params,
                 self.opt_output_path,
                 self.best_cost,
-                self.n_generations,
+                self.iteration,
                 self.simulation_time,
                 tot_time,
             )

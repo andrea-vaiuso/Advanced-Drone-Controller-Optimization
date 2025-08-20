@@ -1,10 +1,10 @@
 # Simulation parameters
-dt: 0.007
-simulation_time: 150 # seconds
-frame_skip: 25 # Number of frames to skip for smoother animation
+dt: 0.008 # Time sampling for dynamic simulation
+simulation_time: 100 # seconds
+frame_skip: 30 # Number of frames to skip for smoother animation
 threshold: 2.0  # Stop simulation threshold
 target_shift_threshold_distance: 2 # Shift to next segment threshold 
-noise_annoyance_radius: 10 # Radius for noise annoyance calculation in meters
+noise_annoyance_radius: 14 # Radius for noise annoyance calculation in meters
 
 max_rpm: 3000 # Maximum RPM for the motors
 n_rotors: 4 # Number of rotors
@@ -21,13 +21,21 @@ anti_windup_contrib: 0.4
 norm_params_path: "Rotor/normalization_params.pth"
 rotor_model_path: "Rotor/rotor_model.pth"
 
-# PID controller settings (yaw remain fixed) # Obtained with manual tuning
+
+# # PID controller settings (yaw remain fixed) # Obtained with manual tuning
 k_pid_yaw: [0.5, 1e-6, 0.1]
 k_pid_pos: [0.7, 0.01, 0.09]
 k_pid_alt: [0.7, 0, 0.1]
 k_pid_att: [20, 1, 0.01]
 k_pid_hsp: [1, 0.01, 0.01]
 k_pid_vsp: [150, 10, 1]
+
+# k_pid_pos: [0.49275800590297264, 0.18848155022322047, 0.17888737446852812]
+# k_pid_alt: [1.515427128667956, 0.0, 0.949345597264735]
+# k_pid_att: [39.447728079683905, 3.8677381495188174, 0.1845336041603497]
+# k_pid_yaw: [0.5, 1e-06, 0.1]
+# k_pid_hsp: [0.09847755819799779, 0.011264223901387349, 0.0]
+# k_pid_vsp: [194.7624155113164, 20.0, 10.0]
 
 # PID controller settings (yaw remain fixed) # Obtained with Bayesian optimization
 # k_pid_yaw: [0.5, 1e-6, 0.1]

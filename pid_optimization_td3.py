@@ -1,8 +1,10 @@
 # Author: Andrea Vaiuso
-# Version: 1.1
-# Date: 06.08.2025
+# Version: 1.3
+# Date: 20.08.2025
 # Description: Class-based implementation of a TD3-driven PID optimization
-#              routine for a quadcopter controller.
+#              routine for a quadcopter controller. First attempt uses
+#              initial PID gains when set_initial_obs=True. TD3 random
+#              pre-fill is disabled (learning_starts=0).
 """TD3 optimization for PID tuning packaged into a class."""
 
 from __future__ import annotations
@@ -24,7 +26,6 @@ from opt_func import (
     run_simulation,
 )
 
-
 from optimizer import Optimizer
 
 
@@ -40,7 +41,8 @@ class TD3PIDOptimizer(Optimizer):
     verbose : bool, optional
         If ``True`` print step-by-step information.
     set_initial_obs : bool, optional
-        Start each episode from the current PID gains when ``True``.
+        Start each episode from the current PID gains when ``True`` and
+        execute the first attempt with those gains.
     simulate_wind_flag : bool, optional
         Enable the Dryden wind model during simulations.
     waypoints : list, optional
@@ -170,8 +172,15 @@ class TD3PIDOptimizer(Optimizer):
         def step(self, action: np.ndarray):  # type: ignore[override]
             """Take a step in the environment using the provided action."""
             self.outer.step_count += 1
-            action = np.clip(action, self.outer.pb_low, self.outer.pb_high)
-            gains = self.outer.decode_action(action)
+
+            # If initial observations are requested, execute the very first attempt
+            # with those gains (clipped to bounds). No extra flags: relies on step_count.
+            if self.outer.set_initial_obs and self.outer.step_count == 1:
+                action_to_use = np.clip(self.initial_obs, self.outer.pb_low, self.outer.pb_high)
+            else:
+                action_to_use = np.clip(action, self.outer.pb_low, self.outer.pb_high)
+
+            gains = self.outer.decode_action(action_to_use)
             sim_costs = self.outer.simulate_pid(gains)
             total_cost = sim_costs["total_cost"]
             reward = -total_cost
@@ -183,14 +192,15 @@ class TD3PIDOptimizer(Optimizer):
                 self.outer.best_params = gains
             self.outer.best_costs.append(self.outer.best_cost)
 
-            self.state = action.astype(np.float32)
+            self.state = action_to_use.astype(np.float32)
             terminated = True  # one-step episode
             truncated = False
             info = {"costs": sim_costs}
             if self.outer.verbose:
+                first = " (first attempt with initial gains)" if (self.outer.set_initial_obs and self.outer.step_count == 1) else ""
                 print(
                     f"[ TD3 ] Step ({self.outer.step_count}/{self.outer.total_timesteps}) "
-                    f"completed: total_cost={total_cost:.4f}, best_cost={self.outer.best_cost:.4f}, costs: {sim_costs}"
+                    f"completed: total_cost={total_cost:.4f}, best_cost={self.outer.best_cost:.4f}, costs: {sim_costs}{first}"
                 )
             return self.state, reward, terminated, truncated, info
 
@@ -200,10 +210,20 @@ class TD3PIDOptimizer(Optimizer):
     def optimize(self) -> None:
         """Execute the TD3 optimization process."""
         env = self.PIDEnv(self)
+
+        # Gaussian exploration noise for TD3
         action_noise = NormalActionNoise(
             mean=np.zeros(self.dim), sigma=self.action_noise_sigma * np.ones(self.dim)
         )
-        model = TD3("MlpPolicy", env, action_noise=action_noise)
+
+        # Disable random pre-fill
+        model = TD3(
+            "MlpPolicy",
+            env,
+            action_noise=action_noise,
+            learning_starts=0,
+            verbose=int(self.verbose),
+        )
 
         start_opt = time()
         print("Starting TD3 optimization...")
@@ -217,10 +237,12 @@ class TD3PIDOptimizer(Optimizer):
                 print("No evaluations were performed.")
                 return
             show_best_params(
+                "RL - TD3",
+                self.parameters,
                 self.best_params,
                 self.opt_output_path,
                 self.best_cost,
-                len(self.costs),
+                self.step_count,
                 self.simulation_time,
                 tot_time,
             )
@@ -251,4 +273,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

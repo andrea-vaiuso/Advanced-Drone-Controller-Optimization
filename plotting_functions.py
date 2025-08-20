@@ -10,6 +10,7 @@ import numpy as np
 from utils import euler_to_rot
 from Simulation import Simulation
 from matplotlib.colors import LinearSegmentedColormap
+from datetime import datetime
 
 def plotLogData(log_dict, time, waypoints=None, ncols=2):
     """
@@ -89,8 +90,16 @@ def plotLogData(log_dict, time, waypoints=None, ncols=2):
                 ax.text(time[-1], wp[axis_key], f"WP{i+1}",
                         color='r', fontsize=10, ha='right', va='center')
 
-        ax.set_title(title)
+        calc_avg = spec.get('calc_average', False)
+        if calc_avg:
+            avg_val = np.mean(data) if isinstance(data, np.ndarray) else np.mean(list(data.values()))
+            ax.set_title(f"{title} (Avg: {avg_val:.2f})")
+        else:
+            ax.set_title(title)
         ax.set_ylabel(ylabel)
+        ax.set_ylim(
+            spec.get('ylim', (None, None))
+        )
         ax.set_xlabel("Time (s)")
         if showgrid:
             ax.grid(True)
@@ -102,6 +111,7 @@ def plotLogData(log_dict, time, waypoints=None, ncols=2):
         fig.delaxes(axes[j])
 
     fig.tight_layout()
+    plt.savefig(f'Plots/{datetime.now().strftime("%Y%m%d_%H%M%S")}_log_data_plot.png', dpi=300)
     plt.show()
 
 
@@ -245,7 +255,7 @@ def plot3DAnimation(sim: Simulation, window=(100, 100, 100)):
     plt.show()
 
 
-def plotNoiseEmissionMap(sim: Simulation, window=(100, 100), upper_limit=None):
+def plotNoiseEmissionMap(sim: Simulation, window=(100, 100), upper_limit=None, param='spl', label='Noise Level (dB / s) per second'):
     """
     Plot a 2D noise emission map of the drone overlaid with its trajectory and waypoints.
 
@@ -253,6 +263,7 @@ def plotNoiseEmissionMap(sim: Simulation, window=(100, 100), upper_limit=None):
         sim (Simulation): Simulation object containing positions, noise map, and waypoints.
         window (tuple): (x_max, y_max) display limits.
         upper_limit (float): Optional upper limit for the noise level color scale.
+        param (str): Parameter to plot from the noise emission map, e.g., 'spl' for sound pressure level, 'PA' for psychoacoustic annoyance.
     """
     noise_emission_map = sim.noise_emission_map
     if len(noise_emission_map) == 0:
@@ -266,7 +277,7 @@ def plotNoiseEmissionMap(sim: Simulation, window=(100, 100), upper_limit=None):
     for (x, y), value in noise_emission_map.items():
         x_coords.append(x)
         y_coords.append(y)
-        spl_values.append(value['spl'] / sim.simulation_time)
+        spl_values.append(value[param] / sim.simulation_time)
 
     # Set up figure
     plt.figure(figsize=(10, 6))
@@ -279,7 +290,7 @@ def plotNoiseEmissionMap(sim: Simulation, window=(100, 100), upper_limit=None):
     scatter = plt.scatter(x_coords, y_coords, c=spl_values, cmap=cmap, marker='o', alpha=0.7)
     if upper_limit is not None:
         scatter.set_clim(0, upper_limit)
-    plt.colorbar(scatter, label='Noise Level (dB / s) per second',)
+    plt.colorbar(scatter, label=label)
 
     # Overlay drone trajectory
     positions = np.array(sim.positions)
@@ -296,16 +307,22 @@ def plotNoiseEmissionMap(sim: Simulation, window=(100, 100), upper_limit=None):
     # Final plot adjustments
     plt.xlim(0, window[0])
     plt.ylim(0, window[1])
-    plt.title('Drone Noise Emission Map. Average SPL: {:.2f} dB'.format(np.mean(sim.spl_history)))
+    if param == 'spl':
+        plt.title('Drone Noise Emission Map. Average SPL: {:.2f} dB'.format(np.mean(sim.spl_history)))
+    elif param == 'PA':
+        plt.title('Drone Noise Emission Map. Total Psychoacoustic Annoyance: {:.2f}'.format(get_total_PA(sim)))
+    else:
+        plt.title('Drone Noise Emission Map')
     plt.xlabel('X Position (m)')
     plt.ylabel('Y Position (m)')
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig(f'Plots/{datetime.now().strftime("%Y%m%d_%H%M%S")}_noise_emission_map_{param}.png', dpi=300)
     plt.show()
 
 
-def plotNoiseEmissionHistogram(sims: list, bins=50, upper_limit=None):
+def plotNoiseEmissionHistogram(sims: list, bins=50, upper_limit=None, param='spl', label='Noise Level (dB / s) per second'):
     """
     Plot a histogram of the noise emission levels recorded during multiple simulations.
     The histogram shows in different colors the distribution of sound pressure levels (SPL) across all simulations.
@@ -315,13 +332,14 @@ def plotNoiseEmissionHistogram(sims: list, bins=50, upper_limit=None):
         sims (list[Simulation]): List of Simulation objects (or a single simulation) containing noise emission data.
         bins (int): Number of bins for the histogram.
         upper_limit (float): Optional upper limit for the histogram x-axis.
+        param (str): Parameter to plot from the noise emission map, e.g., 'spl' for sound pressure level.
     """
     if type(sims) is Simulation:
         sims = [sims]
     # Extract SPL values from each simulation's noise emission map
     all_spl_data = []
     for idx, sim in enumerate(sims):
-        spl_vals = [v['spl'] / sim.simulation_time for v in sim.noise_emission_map.values()]
+        spl_vals = [v[param] / sim.simulation_time for v in sim.noise_emission_map.values()]
         all_spl_data.append(spl_vals)
 
     # Check for data
@@ -349,7 +367,7 @@ def plotNoiseEmissionHistogram(sims: list, bins=50, upper_limit=None):
         plt.bar(centers + offset, counts, width=width, alpha=0.7, label=f'Simulation {i + 1}')
 
     # Final plot adjustments
-    plt.xlabel('Noise Level per second (dB / s)')
+    plt.xlabel(label)
     plt.ylabel('Count')
     if upper_limit is not None:
         plt.xlim(0, upper_limit)
@@ -357,4 +375,20 @@ def plotNoiseEmissionHistogram(sims: list, bins=50, upper_limit=None):
     plt.legend()
     plt.grid(True)
     plt.tight_layout()
+    plt.savefig(f'Plots/{datetime.now().strftime("%Y%m%d_%H%M%S")}_noise_emission_histogram_{param}.png', dpi=300)
     plt.show()
+
+def get_total_PA(sim: Simulation) -> float:
+    """
+    Calculate the total Psychoacoustic Annoyance (PA) from the simulation's noise emission map.
+    
+    Parameters:
+        sim (Simulation): Simulation object containing noise emission data.
+    
+    Returns:
+        float: Total PA across all noise emission points.
+    """
+    total_PA = 0.0
+    for value in sim.noise_emission_map.values():
+        total_PA += value.get('PA', 0.0) / sim.simulation_time
+    return total_PA
