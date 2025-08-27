@@ -14,3 +14,4 @@ Optimizations/SAC/
 Noise/__pycache__/DNNModel.cpython-38.pyc
 Noise/__pycache__/EmpaModel.cpython-38.pyc
 test.py
+Plots/

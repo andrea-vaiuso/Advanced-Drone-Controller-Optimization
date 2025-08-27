@@ -15,7 +15,7 @@ from datetime import datetime
 def plotLogData(log_dict, time, waypoints=None, ncols=2):
     """
     Dynamically plot simulation data with per-plot legend/grid flags and configurable columns.
-    
+    Supports per-series custom time vectors when a spec contains key 'time'.
     Parameters:
         log_dict (dict):
             Keys are subplot titles (str).
@@ -35,11 +35,10 @@ def plotLogData(log_dict, time, waypoints=None, ncols=2):
             draws horizontal lines at each wp['x'], wp['y'], wp['z'].
         ncols (int): number of columns for subplot grid (default 2).
     """
-    # Calculate rows needed based on number of plots
     n_plots = len(log_dict)
     nrows = (n_plots + ncols - 1) // ncols
 
-    fig, axes = plt.subplots(nrows, ncols, figsize=(14, 4*nrows))
+    fig, axes = plt.subplots(nrows, ncols, figsize=(14, 4 * nrows))
     axes = axes.flatten()
 
     for ax, (title, spec) in zip(axes, log_dict.items()):
@@ -47,66 +46,75 @@ def plotLogData(log_dict, time, waypoints=None, ncols=2):
         ylabel = spec.get('ylabel', '')
         showleg = spec.get('showlegend', True)
         showgrid = spec.get('showgrid', False)
+        t_series = np.asarray(spec.get('time', time))
 
         def _plot_series(x, y, lbl=None, color=None, ls=None):
             ax.plot(x, y, label=lbl, color=color, linestyle=ls)
 
-        # Plot each series
         if isinstance(data, dict):
             styles = spec.get('styles', {})
             for lbl, series in data.items():
-                s = styles.get(lbl, {})
-                _plot_series(time, series,
-                             s.get('label', lbl),
-                             s.get('color'),
-                             s.get('linestyle'))
+                series_time = np.asarray(styles.get(lbl, {}).get('time', t_series))
+                _plot_series(series_time, series,
+                             styles.get(lbl, {}).get('label', lbl),
+                             styles.get(lbl, {}).get('color'),
+                             styles.get(lbl, {}).get('linestyle'))
         else:
             arr = np.array(data)
             if arr.ndim == 1:
-                _plot_series(time, arr,
+                _plot_series(t_series, arr,
                              spec.get('label', title),
                              spec.get('color'),
                              spec.get('linestyle'))
             elif arr.ndim == 2:
                 n = arr.shape[1]
-                colors = spec.get('colors', [None]*n)
-                linestyles = spec.get('linestyles', [None]*n)
+                colors = spec.get('colors', [None] * n)
+                linestyles = spec.get('linestyles', [None] * n)
                 labels = spec.get('labels', [f"{title} {i+1}" for i in range(n)])
+                # Optional per-column times: 'times': list/tuple of arrays
+                col_times = spec.get('times', [t_series] * n)
                 for i in range(n):
-                    _plot_series(time, arr[:, i],
-                                 labels[i],
-                                 colors[i],
-                                 linestyles[i])
+                    _plot_series(np.asarray(col_times[i]), arr[:, i],
+                                 labels[i], colors[i], linestyles[i])
 
-        # Plot waypoints for Position plots
         if waypoints and 'Position' in title:
             axis_key = title[0].lower()
             for i, wp in enumerate(waypoints):
-                ax.axhline(y=wp[axis_key],
-                           linestyle='--',
-                           color='r',
-                           label=(f"Waypoint {axis_key.upper()}" if i == 0 else None))
-                # Add text label for waypoint
-                ax.text(time[-1], wp[axis_key], f"WP{i+1}",
-                        color='r', fontsize=10, ha='right', va='center')
+                if axis_key in wp:
+                    ax.axhline(y=wp[axis_key],
+                               linestyle='--',
+                               color='r',
+                               label=(f"Waypoint {axis_key.upper()}" if i == 0 else None))
+                    ax.text(t_series[-1], wp[axis_key], f"WP{i+1}",
+                            color='r', fontsize=10, ha='right', va='center')
 
-        calc_avg = spec.get('calc_average', False)
-        if calc_avg:
-            avg_val = np.mean(data) if isinstance(data, np.ndarray) else np.mean(list(data.values()))
+        if spec.get('calc_average', False):
+            if isinstance(data, dict):
+                vals = []
+                for v in data.values():
+                    v_arr = np.asarray(v)
+                    if v_arr.ndim == 1:
+                        vals.append(v_arr)
+                    else:
+                        vals.append(v_arr.reshape(-1))
+                avg_val = np.mean(np.concatenate(vals)) if vals else float('nan')
+            else:
+                arr = np.asarray(data)
+                avg_val = float(np.mean(arr))
             ax.set_title(f"{title} (Avg: {avg_val:.2f})")
         else:
             ax.set_title(title)
+
         ax.set_ylabel(ylabel)
-        ax.set_ylim(
-            spec.get('ylim', (None, None))
-        )
+        ylim = spec.get('ylim')
+        if ylim:
+            ax.set_ylim(ylim)
         ax.set_xlabel("Time (s)")
         if showgrid:
             ax.grid(True)
         if showleg:
             ax.legend()
 
-    # Remove unused axes
     for j in range(n_plots, len(axes)):
         fig.delaxes(axes[j])
 
