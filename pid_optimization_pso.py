@@ -119,7 +119,7 @@ class PSOPIDOptimizer(Optimizer):
         rng = np.random.default_rng(42)
         particles_pos = rng.uniform(
             self.lower_bounds, self.upper_bounds, size=(self.swarm_size, self.dim)
-        )
+        ) 
         particles_vel = np.zeros((self.swarm_size, self.dim))
 
         if self.set_initial_obs:
